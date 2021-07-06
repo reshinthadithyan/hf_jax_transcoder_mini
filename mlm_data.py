@@ -1,6 +1,7 @@
 from datasets import load_dataset,Dataset,concatenate_datasets
 from pyarrow import LargeStringValue
 
+SEED = 42
 
 class CrossLMDataset:
     def __init__(self,dataset_idt="code_x_glue_cc_code_to_code_trans",lang_1_key="java",lang_2_key="cs",bs=8):
@@ -14,9 +15,17 @@ class CrossLMDataset:
         lang_1_set = Dataset.from_dict({"code":dataset[self.lang_1]})
         lang_2_set = Dataset.from_dict({"code":dataset[self.lang_2]})
         lang_1_set,lang_2_set  = lang_1_set.map(meta_process,batch_size=self.bs),lang_2_set.map(meta_process,batch_size=self.bs)
-        mlm_dataset = concatenate_datasets([lang_1_set,lang_2_set])
+        mlm_dataset = concatenate_datasets([lang_1_set,lang_2_set]).shuffle(seed=SEED)
         return mlm_dataset
     def __call__(self,split="train",preproc_for_crosslm=True):
+        """
+        Main function to get the CrossLM Dataset as in TransCoder(https://arxiv.org/pdf/2006.03511.pdf).
+        Each batch will be made of one language and batches are shuffled.
+
+        args: 
+            split (str) - specify the split you want to use.
+            preproc_for_crosslm (boolean)- if True, sets preprocesses the model for cross-lingual language modelling 
+        """
         if split == "train":
             dataset = self.train_dataset
         elif split == "validation":
