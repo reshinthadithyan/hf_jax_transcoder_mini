@@ -1,4 +1,4 @@
-from datasets import load_dataset,Dataset,concatenate_datasets
+from datasets import load_dataset,Dataset,concatenate_datasets,dataset_dict
 from pyarrow import LargeStringValue
 
 SEED = 42
@@ -17,7 +17,7 @@ class CrossLMDataset:
         lang_1_set,lang_2_set  = lang_1_set.map(meta_process,batch_size=self.bs),lang_2_set.map(meta_process,batch_size=self.bs)
         mlm_dataset = concatenate_datasets([lang_1_set,lang_2_set]).shuffle(seed=SEED)
         return mlm_dataset
-    def __call__(self,split="train",preproc_for_crosslm=True):
+    def __call__(self,split="train",preproc_for_crosslm=True,combine=False):
         """
         Main function to get the CrossLM Dataset as in TransCoder(https://arxiv.org/pdf/2006.03511.pdf).
         Each batch will be made of one language and batches are shuffled.
@@ -33,8 +33,14 @@ class CrossLMDataset:
         elif split == "test":
             dataset = self.test_dataset
         if preproc_for_crosslm:
-            dataset = self.post_process(dataset)
+            if not combine:
+                dataset = self.post_process(dataset)
+            else:
+                trainset,validset,testset = self.post_process(self.train_dataset),self.post_process(self.valid_dataset),self.post_process(self.test_dataset)
+                return dataset_dict({"train": trainset,
+                                    "validation":validset,
+                                    "test":testset})
         return dataset
 if __name__ == "__main__":
     CrossLM = CrossLMDataset()
-    print(CrossLM("test"))
+    print(CrossLM("test",combine=True))
