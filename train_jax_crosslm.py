@@ -53,7 +53,7 @@ from transformers import (
     is_tensorboard_available,
     set_seed,
 )
-
+from crosslm import CrossLMDataset #using utils related
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_MASKED_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
@@ -333,6 +333,8 @@ if __name__ == "__main__":
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
             )
+    elif data_args.dataset_name == "crosslm":
+        datasets = CrossLMDataset()() #
     else:
         data_files = {}
         if data_args.train_file is not None:
