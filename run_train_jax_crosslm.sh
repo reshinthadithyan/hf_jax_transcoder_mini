@@ -8,7 +8,7 @@ python3 train_jax_crosslm.py \
     --max_seq_length="256" \
     --per_device_train_batch_size="4" \
     --per_device_eval_batch_size="4" \
-    --learning_rate="1e-2" \
+    --learning_rate="3e-4" \
     --warmup_steps="1000" \
     --overwrite_output_dir \
     --num_train_epochs="100" \
