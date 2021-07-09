@@ -2,7 +2,7 @@ python3 train_jax_crosslm.py \
     --output_dir="./" \
     --model_type="roberta" \
     --config_name="./models/crosslm" \
-    --tokenizer_name="/models/crosslm" \
+    --tokenizer_name="./models/crosslm" \
     --dataset_name="crosslm" \
     --dataset_config_name="unshuffled_deduplicated_als" \
     --max_seq_length="128" \
