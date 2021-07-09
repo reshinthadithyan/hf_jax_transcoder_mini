@@ -146,14 +146,14 @@ class DataTrainingArguments:
         default=0.15, metadata={"help": "Ratio of tokens to mask for masked language modeling loss"}
     )
     pad_to_max_length: bool = field(
-        default=False,
+        default=True,
         metadata={
             "help": "Whether to pad all samples to `max_seq_length`. "
             "If False, will pad the samples dynamically when batching to the maximum length in the batch."
         },
     )
     line_by_line: bool = field(
-        default=False,
+        default=True,
         metadata={"help": "Whether distinct lines of text in the dataset are to be handled as distinct sequences."},
     )
 
