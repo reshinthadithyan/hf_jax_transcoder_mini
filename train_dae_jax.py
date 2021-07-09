@@ -53,6 +53,7 @@ from transformers import (
     set_seed,
 )
 from transformers.models.t5.modeling_flax_t5 import shift_tokens_right
+from copy import deepcopy
 from utils.crosslm_data_utils import CrossLMDataset 
 
 
