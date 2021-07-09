@@ -12,4 +12,3 @@ python3 train_jax_crosslm.py \
     --warmup_steps="1000" \
     --overwrite_output_dir \
     --num_train_epochs="5"\
-    --tpu_num_cores="8"\
