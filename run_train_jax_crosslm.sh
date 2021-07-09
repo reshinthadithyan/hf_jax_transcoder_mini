@@ -1,5 +1,5 @@
 python3 train_jax_crosslm.py \
-    --output_dir="./" \
+    --output_dir="./tmp/crosslm" \
     --model_type="roberta" \
     --config_name="./models/crosslm" \
     --tokenizer_name="./models/crosslm" \
