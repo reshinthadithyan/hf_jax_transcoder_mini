@@ -1,0 +1,14 @@
+python3 train_jax_crosslm.py \
+    --output_dir="./" \
+    --model_type="roberta" \
+    --config_name="dbernsohn/roberta-java" \
+    --tokenizer_name="dbernsohn/roberta-java" \
+    --dataset_name="crosslm" \
+    --dataset_config_name="unshuffled_deduplicated_als" \
+    --max_seq_length="128" \
+    --per_device_train_batch_size="5" \
+    --per_device_eval_batch_size="5" \
+    --learning_rate="3e-4" \
+    --warmup_steps="1000" \
+    --overwrite_output_dir \
+    --num_train_epochs="1"

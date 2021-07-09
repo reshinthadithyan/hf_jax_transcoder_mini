@@ -1,5 +1,4 @@
-from datasets import load_dataset,Dataset,concatenate_datasets,dataset_dict
-from pyarrow import LargeStringValue
+from datasets import load_dataset,Dataset,concatenate_datasets,DatasetDict
 
 SEED = 42
 
@@ -37,7 +36,7 @@ class CrossLMDataset:
                 dataset = self.post_process(dataset)
             else:
                 trainset,validset,testset = self.post_process(self.train_dataset),self.post_process(self.valid_dataset),self.post_process(self.test_dataset)
-                return dataset_dict({"train": trainset,
+                return ({"train": trainset,
                                     "validation":validset,
                                     "test":testset})
         return dataset

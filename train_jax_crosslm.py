@@ -53,7 +53,7 @@ from transformers import (
     is_tensorboard_available,
     set_seed,
 )
-from crosslm import CrossLMDataset #using utils related
+from utils.crosslm_data_utils import CrossLMDataset #using utils related
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_MASKED_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
@@ -316,25 +316,26 @@ if __name__ == "__main__":
     #
     # In distributed training, the load_dataset function guarantees that only one local process can concurrently
     # download the dataset.
-    if data_args.dataset_name is not None:
-        # Downloading and loading a dataset from the hub.
-        datasets = load_dataset(data_args.dataset_name, data_args.dataset_config_name, cache_dir=model_args.cache_dir)
+    # if data_args.dataset_name is not None:
+    #     # Downloading and loading a dataset from the hub.
+    #     datasets = load_dataset(data_args.dataset_name, data_args.dataset_config_name, cache_dir=model_args.cache_dir)
 
-        if "validation" not in datasets.keys():
-            datasets["validation"] = load_dataset(
-                data_args.dataset_name,
-                data_args.dataset_config_name,
-                split=f"train[:{data_args.validation_split_percentage}%]",
-                cache_dir=model_args.cache_dir,
-            )
-            datasets["train"] = load_dataset(
-                data_args.dataset_name,
-                data_args.dataset_config_name,
-                split=f"train[{data_args.validation_split_percentage}%:]",
-                cache_dir=model_args.cache_dir,
-            )
-    elif data_args.dataset_name == "crosslm":
-        datasets = CrossLMDataset()() #
+    #     if "validation" not in datasets.keys():
+    #         datasets["validation"] = load_dataset(
+    #             data_args.dataset_name,
+    #             data_args.dataset_config_name,
+    #             split=f"train[:{data_args.validation_split_percentage}%]",
+    #             cache_dir=model_args.cache_dir,
+    #         )
+    #         datasets["train"] = load_dataset(
+    #             data_args.dataset_name,
+    #             data_args.dataset_config_name,
+    #             split=f"train[{data_args.validation_split_percentage}%:]",
+    #             cache_dir=model_args.cache_dir,
+    #         )
+    if data_args.dataset_name == "crosslm":
+            CrossLM = CrossLMDataset()
+            datasets = CrossLM("test",combine=True)
     else:
         data_files = {}
         if data_args.train_file is not None:
@@ -487,7 +488,6 @@ if __name__ == "__main__":
     eval_batch_size = int(training_args.per_device_eval_batch_size) * jax.device_count()
 
     num_train_steps = len(tokenized_datasets["train"]) // train_batch_size * num_epochs
-
     # Create learning rate schedule
     warmup_fn = optax.linear_schedule(
         init_value=0.0, end_value=training_args.learning_rate, transition_steps=training_args.warmup_steps
