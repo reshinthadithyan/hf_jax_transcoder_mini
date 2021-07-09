@@ -16,6 +16,6 @@ def train_tok(dataset,save_dir):
                 min_frequency=10
                 )
     Tokenizer.train_from_iterator([dataset["java"],dataset["cs"]],vocab_size=3000)
-    Tokenizer.save_model(save_dir)
+    Tokenizer.save(save_dir)
 if __name__ == "__main__":
     train_tok(dataset,r"/Users/reshinthadithyan/master/research/code-research/unsup_translation/tokenizer_dir/crosslm")
