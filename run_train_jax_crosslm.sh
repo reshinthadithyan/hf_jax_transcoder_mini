@@ -11,6 +11,6 @@ python3 train_jax_crosslm.py \
     --learning_rate="3e-4" \
     --warmup_steps="1000" \
     --overwrite_output_dir \
-    --num_train_epochs="50" \
+    --num_train_epochs="1" \
     --push_to_hub \
     --push_to_hub_model_id "reshinthadithyan\transcoder-js-cs"
