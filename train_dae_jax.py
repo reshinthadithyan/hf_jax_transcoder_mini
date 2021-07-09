@@ -370,15 +370,154 @@ def compute_input_and_target_lengths(inputs_length, noise_density, mean_noise_sp
 #         is_noise = np.equal(span_num % 2, 1)
 
 #         return is_noise[:orig_length]
+class NoiseAdder():
+    def __init__(self,params,tokenizer):
+        self.mask_index = tokenizer.mask_token_id
+        self.pad_index = tokenizer.pad_token_id
+        self.eos_index = tokenizer.sep_token_id
+        self.sos_index = tokenizer.cls_token_id
+        self.params = params
+        # print(self.mask_index,self.pad_index,self.eos_index)
+
+    def get_before_pad(self,x):
+        '''Obtain length till pad'''
+        try:
+            return np.argwhere(x==0)[0][0]
+        except:
+            return len(x)
+
+    def word_mask(self, x, l):
+        """ Randomly mask input words """
+        # define droppable word indices
+        no_mask = int(l*self.params.word_mask)
+        mask_seq = np.random.randint(2,l,no_mask)
+        
+        x2 = deepcopy(x)
+        for i in mask_seq:
+            x2[i] = self.mask_index
+        return x2
+
+    def word_dropout(self, x, l):
+        """ Randomly drop input words """
+        if self.params.word_dropout == 0:
+            return x
+
+        # define droppable word indices
+        no_drops = int(l*self.params.word_dropout)
+        drop_seq = np.random.randint(2,l,no_drops)
+
+        x2 = deepcopy(x)
+        x2 = np.delete(x2,drop_seq,0)
+        x2 = np.concatenate([x2,[self.mask_index]*no_drops],0)
+        return x2
+
+    def word_shuffle(self, x, l):
+        """ Randomly shuffle input words. """
+        if self.params.word_shuffle == 0:
+            return x
+        
+        # Choose a subsequence to shuffle
+        shuffl_seq = np.random.randint(2,l,2) #leave start token, get start and end of shuffl_seq
+        shuffl_seq.sort()
+
+        x2 = deepcopy(x)
+        x2 = np.concatenate([x[:shuffl_seq[0]],np.random.permutation(x[shuffl_seq[0]:shuffl_seq[1]]),x[shuffl_seq[1]:]],axis=0)
+        return x2
+
+    def add_noise(self, words, lengths):
+        """
+        Add noise to the encoder input.
+        """
+        length = self.get_before_pad(words)
+        words = self.word_shuffle(words, length)
+        words = self.word_dropout(words, length)
+        length = self.get_before_pad(words)
+        words = self.word_mask(words, length)
+        return words
+
+
 @flax.struct.dataclass
 class FlaxDataCollatorForDAE:
+    def __init__(self,tokenizer,word_mask,word_dropout,word_shuffle):
+        self.mask_index = tokenizer.mask_token_id
+        self.pad_index = tokenizer.pad_token_id
+        self.eos_index = tokenizer.sep_token_id
+        self.sos_index = tokenizer.cls_token_id
+        self.word_mask = word_mask
+        self.word_dropout = word_dropout
+        self.word_shuffle = word_shuffle
+
+    def get_before_pad(self,x):
+        '''Obtain length till pad'''
+        try:
+            return np.argwhere(x==0)[0][0]
+        except:
+            return len(x)
+
+    def word_mask(self, x, l):
+        """ Randomly mask input words """
+        # define droppable word indices
+        no_mask = int(l*self.word_mask)
+        mask_seq = np.random.randint(2,l,no_mask)
+        
+        x2 = deepcopy(x)
+        for i in mask_seq:
+            x2[i] = self.mask_index
+        return x2
+
+    def word_dropout(self, x, l):
+        """ Randomly drop input words """
+        if self.word_dropout == 0:
+            return x
+
+        # define droppable word indices
+        no_drops = int(l*self.word_dropout)
+        drop_seq = np.random.randint(2,l,no_drops)
+
+        x2 = deepcopy(x)
+        x2 = np.delete(x2,drop_seq,0)
+        x2 = np.concatenate([x2,[self.mask_index]*no_drops],0)
+        return x2
+
+    def word_shuffle(self, x, l):
+        """ Randomly shuffle input words. """
+        if self.word_shuffle == 0:
+            return x
+        
+        # Choose a subsequence to shuffle
+        shuffl_seq = np.random.randint(2,l,2) #leave start token, get start and end of shuffl_seq
+        shuffl_seq.sort()
+
+        x2 = deepcopy(x)
+        x2 = np.concatenate([x[:shuffl_seq[0]],np.random.permutation(x[shuffl_seq[0]:shuffl_seq[1]]),x[shuffl_seq[1]:]],axis=0)
+        return x2
+
+    def add_noise(self, words, lengths):
+        """
+        Add noise to the encoder input.
+        """
+        length = self.get_before_pad(words)
+        words = self.word_shuffle(words, length)
+        words = self.word_dropout(words, length)
+        length = self.get_before_pad(words)
+        words = self.word_mask(words, length)
+        return words
+
     def __call__(self, examples: List[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
 
         # convert list to dict and tensorize input
-        batch = BatchEncoding(
-            {k: np.array([examples[i][k] for i in range(len(examples))]) for k, v in examples[0].items()}
-        )
+        # batch = BatchEncoding(
+        #     {k: np.array([examples[i][k] for i in range(len(examples))]) for k, v in examples[0].items()}
+        # ) already converted to np so not reqd
 
+
+        batch["labels"] = 
+
+
+        batch["decoder_input_ids"] = shift_tokens_right(
+            batch["labels"], self.pad_token_id, self.decoder_start_token_id
+        )
+        return batch
 
 def generate_batch_splits(samples_idx: jnp.ndarray, batch_size: int) -> jnp.ndarray:
     num_samples = len(samples_idx)
@@ -598,6 +737,7 @@ if __name__ == "__main__":
     # This one will take care of randomly masking the tokens.
     data_collator = FlaxDataCollatorForDAE(
         tokenizer=tokenizer,
+        
         noise_density=data_args.mlm_probability,
         mean_noise_span_length=data_args.mean_noise_span_length,
         input_length=max_seq_length,
