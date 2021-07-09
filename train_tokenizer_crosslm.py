@@ -24,5 +24,5 @@ if __name__ == "__main__":
     dataset = CrossLMDataset()("train",False,False)
     print(dataset)
     tok = RobertaTokenizer.from_pretrained(r"./tokenizer_dir/crosslm")#,r"./tokenizer_dir/crosslm/merges.txt")
-    print(tok(["import java.utils;"],return_tensors="pt"))
+    #print(tok(["import java.utils;"],return_tensors="pt"))
     #print(tok.encode("import java.utils;",return_tensors="pt"))
