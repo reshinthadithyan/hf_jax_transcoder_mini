@@ -274,10 +274,12 @@ class DataCollatorForDAE:
 
         # define droppable word indices
         no_drops = int(l*self.word_dropout_factor)
-        drop_seq = np.random.randint(2,l,no_drops)
+        # drop_seq = np.random.randint(1,l,no_drops)  #leave start token #gives duplicates so nope
+        drop_seq = np.random.choice(range(1,l), no_drops, replace=False)
 
         x2 = deepcopy(x)
         x2 = np.delete(x2,drop_seq,0)
+        # print("dropped",len(x)-len(x2),no_drops,x2,drop_seq,x)
         x2 = np.concatenate([x2,[self.pad_index]*no_drops],0)
         return x2
 
@@ -299,16 +301,21 @@ class DataCollatorForDAE:
         Add noise to the encoder input.
         """
         length = self.get_before_pad(words)
+        # print("init",len(words))
         words = self.word_shuffle(words, length)
+        # print("shuffle",len(words))
         words = self.word_dropout(words, length)
+        # print("after drop",len(words))
         length = self.get_before_pad(words)
         # print(tokenizer.convert_ids_to_tokens(words),length)
         words = self.word_mask(words, length)
+        # print("mask",len(words))
         return np.asarray(words)
     
     def add_noise_dataset(self,ds):
         ds["input_ids"] = self.add_noise(ds["input_ids"])
         return ds
+
 
 def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuffle: bool = False,coll):
     steps_per_epoch = len(dataset) // batch_size
@@ -327,12 +334,11 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
         for x in range(len(batch['input_ids'])):
             batch['input_ids'][x] = coll.add_noise(batch['output_ids'][x])
 
-        batch['input_ids'] = shift_tokens_right_fn(
-            jnp.array(batch['input_ids']), config.pad_token_id, config.decoder_start_token_id
-        )
-        #     print("over")
         # batch = batch.to_dict()
         batch = {k: jnp.array(v) for k, v in batch.items()}
+        batch['input_ids'] = shift_tokens_right_fn(
+            batch['input_ids'], config.pad_token_id, config.decoder_start_token_id
+        )
         batch = shard(batch)
         yield batch
 
