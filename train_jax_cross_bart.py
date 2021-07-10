@@ -479,9 +479,10 @@ if __name__ == "__main__":
     # Initialize our training
     rng = jax.random.PRNGKey(training_args.seed)
     dropout_rngs = jax.random.split(rng, jax.local_device_count())
-    #TODO :  Add New BART Model
-    from utils.model_utils import FlaxBartCrossLM
-    model = FlaxBartCrossLM(config,dtype=getattr(jnp, model_args.dtype))#FlaxAutoModelForMaskedLM.from_config(config, seed=training_args.seed, dtype=getattr(jnp, model_args.dtype))
+    #TODO :  Add New BART Model with encode
+    #from utils.model_utils import FlaxBartCrossLM
+    from transformers.models.bart.modeling_flax_bart import FlaxBartPreTrainedModel,FlaxBartModel
+    model = FlaxBartModel(config,dtype=getattr(jnp, model_args.dtype))#FlaxBartCrossLM(config,dtype=getattr(jnp, model_args.dtype))#FlaxAutoModelForMaskedLM.from_config(config, seed=training_args.seed, dtype=getattr(jnp, model_args.dtype))
 
     # Store some constant
     num_epochs = int(training_args.num_train_epochs)
@@ -525,7 +526,7 @@ if __name__ == "__main__":
     )
 
     # Setup train state
-    state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=adamw)
+    state = train_state.TrainState.create(apply_fn=model.encode, params=model.params, tx=adamw)
 
     # Define gradient update step fn
     def train_step(state, batch, dropout_rng):
