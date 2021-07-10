@@ -26,7 +26,6 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import Callable, Optional
-
 import datasets
 import nltk  # Here to have a nice missing dependency error message early on
 import numpy as np
@@ -54,6 +53,7 @@ from transformers import (
 )
 from transformers.file_utils import is_offline_mode
 from utils.crosslm_data_utils import CrossLMDataset 
+from copy import deepcopy
 
 
 logger = logging.getLogger(__name__)
@@ -205,88 +205,6 @@ class DataTrainingArguments:
             self.val_max_target_length = self.max_target_length
 
 
-# @flax.struct.dataclass
-# class FlaxDataCollatorForDAE:
-#     def __init__(self,tokenizer,word_mask,word_dropout,word_shuffle):
-#         self.mask_index = tokenizer.mask_token_id
-#         self.pad_index = tokenizer.pad_token_id
-#         self.eos_index = tokenizer.sep_token_id
-#         self.sos_index = tokenizer.cls_token_id
-#         self.word_mask = word_mask
-#         self.word_dropout = word_dropout
-#         self.word_shuffle = word_shuffle
-
-#     def get_before_pad(self,x):
-#         '''Obtain length till pad'''
-#         try:
-#             return np.argwhere(x==0)[0][0]
-#         except:
-#             return len(x)
-
-#     def word_mask(self, x, l):
-#         """ Randomly mask input words """
-#         # define droppable word indices
-#         no_mask = int(l*self.word_mask)
-#         mask_seq = np.random.randint(2,l,no_mask)
-        
-#         x2 = deepcopy(x)
-#         for i in mask_seq:
-#             x2[i] = self.mask_index
-#         return x2
-
-#     def word_dropout(self, x, l):
-#         """ Randomly drop input words """
-#         if self.word_dropout == 0:
-#             return x
-
-#         # define droppable word indices
-#         no_drops = int(l*self.word_dropout)
-#         drop_seq = np.random.randint(2,l,no_drops)
-
-#         x2 = deepcopy(x)
-#         x2 = np.delete(x2,drop_seq,0)
-#         x2 = np.concatenate([x2,[self.mask_index]*no_drops],0)
-#         return x2
-
-#     def word_shuffle(self, x, l):
-#         """ Randomly shuffle input words. """
-#         if self.word_shuffle == 0:
-#             return x
-        
-#         # Choose a subsequence to shuffle
-#         shuffl_seq = np.random.randint(2,l,2) #leave start token, get start and end of shuffl_seq
-#         shuffl_seq.sort()
-
-#         x2 = deepcopy(x)
-#         x2 = np.concatenate([x[:shuffl_seq[0]],np.random.permutation(x[shuffl_seq[0]:shuffl_seq[1]]),x[shuffl_seq[1]:]],axis=0)
-#         return x2
-
-#     def add_noise(self, words, lengths):
-#         """
-#         Add noise to the encoder input.
-#         """
-#         length = self.get_before_pad(words)
-#         words = self.word_shuffle(words, length)
-#         words = self.word_dropout(words, length)
-#         length = self.get_before_pad(words)
-#         words = self.word_mask(words, length)
-#         return words
-
-#     def __call__(self, examples: List[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
-
-#         # convert list to dict and tensorize input
-#         # batch = BatchEncoding(
-#         #     {k: np.array([examples[i][k] for i in range(len(examples))]) for k, v in examples[0].items()}
-#         # ) already converted to np so not reqd
-
-
-#         batch["labels"] = 
-
-
-#         batch["decoder_input_ids"] = shift_tokens_right(
-#             batch["labels"], self.pad_token_id, self.decoder_start_token_id
-#         )
-#         return batch
         
 class TrainState(train_state.TrainState):
     dropout_rng: jnp.ndarray
@@ -295,13 +213,105 @@ class TrainState(train_state.TrainState):
         return jax_utils.replicate(self).replace(dropout_rng=shard_prng_key(self.dropout_rng))
 
 
-def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuffle: bool = False):
-    """
-    Returns batches of size `batch_size` from truncated `dataset`, sharded over all local devices.
-    Shuffle batches if `shuffle` is `True`.
-    """
-    steps_per_epoch = len(dataset) // batch_size
+# def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuffle: bool = False):
+#     """
+#     Returns batches of size `batch_size` from truncated `dataset`, sharded over all local devices.
+#     Shuffle batches if `shuffle` is `True`.
+#     """
+#     steps_per_epoch = len(dataset) // batch_size
 
+#     if shuffle:
+#         batch_idx = jax.random.permutation(rng, len(dataset))
+#     else:
+#         batch_idx = jnp.arange(len(dataset))
+
+#     batch_idx = batch_idx[: steps_per_epoch * batch_size]  # Skip incomplete batch.
+#     batch_idx = batch_idx.reshape((steps_per_epoch, batch_size))
+
+#     for idx in batch_idx:
+#         batch = dataset[idx]
+#         batch = {k: jnp.array(v) for k, v in batch.items()}
+
+#         batch = shard(batch)
+
+#         yield batch
+
+class DataCollatorForDAE:
+    def __init__(self,tokenizer,word_mask,word_dropout,word_shuffle):
+        self.mask_index = tokenizer.mask_token_id
+        self.pad_index = tokenizer.pad_token_id
+        self.eos_index = tokenizer.sep_token_id
+        self.sos_index = tokenizer.cls_token_id
+        self.word_mask_factor = word_mask
+        self.word_dropout_factor = word_dropout
+        self.is_word_shuffle = word_shuffle
+
+    def get_before_pad(self,x):
+        '''Obtain length till pad'''
+        try:
+            return np.argwhere(x==self.pad_index)[0][0]
+        except:
+            return len(x)
+
+    def word_mask(self, x, l):
+        """ Randomly mask input words """
+        # define droppable word indices
+        if self.word_mask_factor == 0:
+            return x
+
+        no_mask = int(l*self.word_mask_factor)
+        mask_seq = np.random.randint(2,l,no_mask)
+        
+        x2 = deepcopy(x)
+        for i in mask_seq:
+            x2[i] = self.mask_index
+        return x2
+
+    def word_dropout(self, x, l):
+        """ Randomly drop input words """
+        if self.word_dropout_factor == 0:
+            return x
+
+        # define droppable word indices
+        no_drops = int(l*self.word_dropout_factor)
+        drop_seq = np.random.randint(2,l,no_drops)
+
+        x2 = deepcopy(x)
+        x2 = np.delete(x2,drop_seq,0)
+        x2 = np.concatenate([x2,[self.pad_index]*no_drops],0)
+        return x2
+
+    def word_shuffle(self, x, l):
+        """ Randomly shuffle input words. """
+        if self.is_word_shuffle == 0:
+            return x
+        
+        # Choose a subsequence to shuffle
+        shuffl_seq = np.random.randint(2,l,2) #leave start token, get start and end of shuffl_seq
+        shuffl_seq.sort()
+
+        x2 = deepcopy(x)
+        x2 = np.concatenate([x[:shuffl_seq[0]],np.random.permutation(x[shuffl_seq[0]:shuffl_seq[1]]),x[shuffl_seq[1]:]],axis=0)
+        return x2
+
+    def add_noise(self, words):
+        """
+        Add noise to the encoder input.
+        """
+        length = self.get_before_pad(words)
+        words = self.word_shuffle(words, length)
+        words = self.word_dropout(words, length)
+        length = self.get_before_pad(words)
+        # print(tokenizer.convert_ids_to_tokens(words),length)
+        words = self.word_mask(words, length)
+        return np.asarray(words)
+    
+    def add_noise_dataset(self,ds):
+        ds["input_ids"] = self.add_noise(ds["input_ids"])
+        return ds
+
+def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuffle: bool = False,coll):
+    steps_per_epoch = len(dataset) // batch_size
     if shuffle:
         batch_idx = jax.random.permutation(rng, len(dataset))
     else:
@@ -311,11 +321,15 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
     batch_idx = batch_idx.reshape((steps_per_epoch, batch_size))
 
     for idx in batch_idx:
-        batch = dataset[idx]
+        batch = dataset[idx] #1,bsz,seq_len
+        # batch = Dataset.from_dict(batch)
+        # batch = batch.map(coll.add_noise_dataset,batched=False)
+        for x in range(len(batch['input_ids'])):
+            batch['input_ids'][x] = coll.add_noise(batch['input_ids'][0])
+        #     print("over")
+        # batch = batch.to_dict()
         batch = {k: jnp.array(v) for k, v in batch.items()}
-
         batch = shard(batch)
-
         yield batch
 
 
@@ -466,7 +480,7 @@ def main():
         logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
 
-    dataset_columns = "text" if "text" in column_names else column_names[0]
+    dataset_columns = "code" if "code" in column_names else column_names[0]
 
   
     # Temporarily set max_target_length for training.
@@ -478,32 +492,26 @@ def main():
     # for that dynamically import the `shift_tokens_right` function from the model file
     model_module = __import__(model.__module__, fromlist=["shift_tokens_tight"])
     shift_tokens_right_fn = getattr(model_module, "shift_tokens_right")
+    
+    #Modules to help in efficient batching
+    def get_str_len(example):
+        example['len'] = len(example['code'])
+        return example
 
-
+    def sort_by_len(datasets):
+        datasets = datasets.map(get_str_len)
+        datasets.set_format(type="numpy",columns="len",output_all_columns=True)
+        datasets = datasets.sort('len')
+        datasets = datasets.remove_columns('len')
+        return datasets
+    
     # Setting padding="max_length" as we need fixed length inputs for jitted functions
     def preprocess_function(examples):
         inputs = examples[text_column]
-        # targets = examples[summary_column]
         inputs = [prefix + inp for inp in inputs]
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
-
-        # Setup the tokenizer for targets
-        with tokenizer.as_target_tokenizer():
-            labels = tokenizer(
-                targets, max_length=max_target_length, padding="max_length", truncation=True, return_tensors="np"
-            )
-
-        model_inputs["labels"] = labels["input_ids"]
-        decoder_input_ids = shift_tokens_right_fn(
-            jnp.array(labels["input_ids"]), config.pad_token_id, config.decoder_start_token_id
-        )
-        model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
-
-        # We need decoder_attention_mask so we can ignore pad tokens from loss
-        model_inputs["decoder_attention_mask"] = labels["attention_mask"]
-
         return model_inputs
 
     if training_args.do_train:
@@ -514,10 +522,12 @@ def main():
         # "For debugging purposes or quicker training, truncate the number of training examples to this value if set."
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
-        
+
+        train_dataset = sort_by_len(train_dataset)
         train_dataset = train_dataset.map(
             preprocess_function,
             batched=True,
+            batch_size = int(training_args.per_device_train_batch_size)* jax.device_count(), #if this doesnt work, mul with * jax.device_count()
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
@@ -531,11 +541,13 @@ def main():
         eval_dataset = dataset["validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+        eval_dataset = sort_by_len(eval_dataset)
         eval_dataset = eval_dataset.map(
             preprocess_function,
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
+            batch_size = int(training_args.per_device_eval_batch_size)* jax.device_count(),
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on validation dataset",
         )
@@ -547,12 +559,15 @@ def main():
         predict_dataset = dataset["test"]
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+        predict_dataset = sort_by_len(predict_dataset)
+
         predict_dataset = predict_dataset.map(
             preprocess_function,
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
+            batch_size=int(training_args.per_device_eval_batch_size)* jax.device_count(),
             desc="Running tokenizer on prediction dataset",
         )
 
@@ -724,6 +739,10 @@ def main():
     p_eval_step = jax.pmap(partial(eval_step, label_smoothing_factor=training_args.label_smoothing_factor), "batch")
     p_generate_step = jax.pmap(generate_step, "batch")
 
+    #initial noise generating class 
+    coll = DataCollatorForDAE(tokenizer,word_mask=0.15,word_dropout=0.15,word_shuffle=1)
+    
+    
     # Replicate the train state on each device
     state = state.replicate()
 
