@@ -325,7 +325,11 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
         # batch = Dataset.from_dict(batch)
         # batch = batch.map(coll.add_noise_dataset,batched=False)
         for x in range(len(batch['input_ids'])):
-            batch['input_ids'][x] = coll.add_noise(batch['input_ids'][0])
+            batch['input_ids'][x] = coll.add_noise(batch['output_ids'][x])
+
+        batch['input_ids'] = shift_tokens_right_fn(
+            jnp.array(batch['input_ids']), config.pad_token_id, config.decoder_start_token_id
+        )
         #     print("over")
         # batch = batch.to_dict()
         batch = {k: jnp.array(v) for k, v in batch.items()}
@@ -490,9 +494,7 @@ def main():
     # In Flax, for seq2seq models we need to pass `decoder_input_ids`
     # as the Flax models don't accept `labels`, we need to prepare the decoder_input_ids here
     # for that dynamically import the `shift_tokens_right` function from the model file
-    model_module = __import__(model.__module__, fromlist=["shift_tokens_tight"])
-    shift_tokens_right_fn = getattr(model_module, "shift_tokens_right")
-    
+   
     #Modules to help in efficient batching
     def get_str_len(example):
         example['len'] = len(example['code'])
@@ -739,9 +741,6 @@ def main():
     p_eval_step = jax.pmap(partial(eval_step, label_smoothing_factor=training_args.label_smoothing_factor), "batch")
     p_generate_step = jax.pmap(generate_step, "batch")
 
-    #initial noise generating class 
-    coll = DataCollatorForDAE(tokenizer,word_mask=0.15,word_dropout=0.15,word_shuffle=1)
-    
     
     # Replicate the train state on each device
     state = state.replicate()
@@ -752,6 +751,9 @@ def main():
     logger.info(f"  Instantaneous batch size per device = {training_args.per_device_train_batch_size}")
     logger.info(f"  Total train batch size (w. parallel & distributed) = {train_batch_size}")
     logger.info(f"  Total optimization steps = {total_train_steps}")
+
+    #initial noise generating class 
+    coll = DataCollatorForDAE(tokenizer,word_mask=0.15,word_dropout=0.15,word_shuffle=1)
 
     train_time = 0
     epochs = tqdm(range(num_epochs), desc=f"Epoch ... (1/{num_epochs})", position=0)
@@ -764,7 +766,7 @@ def main():
         train_metrics = []
 
         # Generate an epoch by shuffling sampling indices from the train dataset
-        train_loader = data_loader(input_rng, train_dataset, train_batch_size, shuffle=True)
+        train_loader = data_loader(input_rng, train_dataset, train_batch_size, shuffle=True, coll)
         steps_per_epoch = len(train_dataset) // train_batch_size
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
@@ -785,7 +787,7 @@ def main():
         eval_preds = []
         eval_labels = []
 
-        eval_loader = data_loader(input_rng, eval_dataset, eval_batch_size)
+        eval_loader = data_loader(input_rng, eval_dataset, eval_batch_size, coll)
         eval_steps = len(eval_dataset) // eval_batch_size
         for _ in tqdm(range(eval_steps), desc="Evaluating...", position=2, leave=False):
             # Model forward
@@ -830,7 +832,7 @@ def main():
         pred_generations = []
         pred_labels = []
 
-        pred_loader = data_loader(input_rng, predict_dataset, eval_batch_size)
+        pred_loader = data_loader(input_rng, predict_dataset, eval_batch_size, coll)
         pred_steps = len(predict_dataset) // eval_batch_size
         for _ in tqdm(range(pred_steps), desc="Predicting...", position=2, leave=False):
             # Model forward
