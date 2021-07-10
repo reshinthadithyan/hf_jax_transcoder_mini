@@ -617,9 +617,9 @@ if __name__ == "__main__":
                 train_time += time.time() - train_start
                 if has_tensorboard and jax.process_index() == 0:
                     write_train_metric(summary_writer, train_metrics, train_time, cur_step)
-
+                    jax.device_
                 epochs.write(
-                    f"Step... ({cur_step} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
+                    f"Step... ({cur_step} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']}, TPU : {jax.device_count()},)"
                 )
 
                 train_metrics = []
@@ -647,7 +647,7 @@ if __name__ == "__main__":
 
         # Update progress bar
         epochs.desc = (
-            f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {eval_metrics['loss']}, Acc: {eval_metrics['accuracy']})"
+            f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {eval_metrics['loss']}, Acc: {eval_metrics['accuracy']}, TPU : {jax.device_count()},)"
         )
 
         # Save metrics
