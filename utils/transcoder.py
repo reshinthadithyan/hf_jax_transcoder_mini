@@ -86,7 +86,7 @@ class FlaxTrancoderBartModule(nn.Module):
             deterministic=deterministic,
         )
         if encode_only:
-            print("===================enocde_only=====================")
+            #print("===================enocde_only=====================")
             encoder_output_state = encoder_outputs["last_hidden_state"]
             encoder_output_state = self.dropout(encoder_output_state,deterministic=deterministic)
             output = nn.gelu(self.init_lm_head(encoder_output_state))
@@ -125,7 +125,7 @@ class FlaxTrancoderBartModule(nn.Module):
             encoder_attentions=encoder_outputs.attentions,
         )
 
-class FlaxTranscoderBartModel(FlaxBartPreTrainedModel):
+class FlaxTranscoderBartModel(FlaxBartTranscoderPreTrainedModel):
     """FlaxTranscoderBartModel for use with Roberta Encoder"""
     config: BartConfig
     dtype: jnp.dtype = jnp.float32  # the dtype of the computation

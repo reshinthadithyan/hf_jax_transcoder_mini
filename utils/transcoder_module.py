@@ -337,5 +337,5 @@ class FlaxBartTranscoderPreTrainedModel(FlaxPreTrainedModel):
             return_dict=return_dict,
             deterministic=not train,
             rngs=rngs,
-            encode_only=encode_only
+            encode_only=True
         )

@@ -534,7 +534,7 @@ if __name__ == "__main__":
         def loss_fn(params):
             labels = batch.pop("labels")
 
-            logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True,encode_only=False)[0]
+            logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True,encode_only=True)[0]
 
             # compute loss, ignore padded input tokens
             label_mask = jnp.where(labels > 0, 1.0, 0.0)
