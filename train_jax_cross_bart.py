@@ -53,8 +53,8 @@ from transformers import (
     is_tensorboard_available,
     set_seed,
 )
-from utils.crosslm_data_utils import CrossLMDataset #using utils related
-
+from utils.crosslm_data_utils import CrossLMDataset #using utils related to dataset loading
+from utils.transcoder import FlaxTranscoderBartModel
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_MASKED_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
@@ -480,9 +480,8 @@ if __name__ == "__main__":
     rng = jax.random.PRNGKey(training_args.seed)
     dropout_rngs = jax.random.split(rng, jax.local_device_count())
     #TODO :  Add New BART Model with encode
-    #from utils.model_utils import FlaxBartCrossLM
-    from transformers.models.bart.modeling_flax_bart import FlaxBartPreTrainedModel,FlaxBartModel
-    model = FlaxBartModel(config,dtype=getattr(jnp, model_args.dtype))#FlaxBartCrossLM(config,dtype=getattr(jnp, model_args.dtype))#FlaxAutoModelForMaskedLM.from_config(config, seed=training_args.seed, dtype=getattr(jnp, model_args.dtype))
+    model = FlaxTranscoderBartModel(config,seed=training_args.seed,dtype=getattr(jnp,model_args.dtype))
+    #FlaxBartModel(config,dtype=getattr(jnp,model_args.dtype))#FlaxBartCrossLM(config,dtype=getattr(jnp, model_args.dtype))#FlaxBartCrossLM(config,dtype=getattr(jnp, model_args.dtype))#FlaxAutoModelForMaskedLM.from_config(config, seed=training_args.seed, dtype=getattr(jnp, model_args.dtype))
 
     # Store some constant
     num_epochs = int(training_args.num_train_epochs)
@@ -526,7 +525,7 @@ if __name__ == "__main__":
     )
 
     # Setup train state
-    state = train_state.TrainState.create(apply_fn=model.encode, params=model.params, tx=adamw)
+    state = train_state.TrainState.create(apply_fn=model.__call__, params=model.params, tx=adamw)
 
     # Define gradient update step fn
     def train_step(state, batch, dropout_rng):
@@ -535,7 +534,7 @@ if __name__ == "__main__":
         def loss_fn(params):
             labels = batch.pop("labels")
 
-            logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True)[0]
+            logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True,encode_only=False)[0]
 
             # compute loss, ignore padded input tokens
             label_mask = jnp.where(labels > 0, 1.0, 0.0)
@@ -617,7 +616,6 @@ if __name__ == "__main__":
                 train_time += time.time() - train_start
                 if has_tensorboard and jax.process_index() == 0:
                     write_train_metric(summary_writer, train_metrics, train_time, cur_step)
-                    jax.device_
                 epochs.write(
                     f"Step... ({cur_step} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']}, TPU : {jax.device_count()},)"
                 )
