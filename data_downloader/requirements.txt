@@ -1,0 +1,11 @@
+pandas
+joblib
+numpy
+tqdm
+requests
+tree_sitter
+typer
+python-magic
+fire
+PyYAML
+tree-hugger
