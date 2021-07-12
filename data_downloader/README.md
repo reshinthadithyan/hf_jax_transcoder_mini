@@ -1,4 +1,4 @@
-### Usage
+## Usage
 
 1. Go to ```download_repo_info.py``` and set ```USER={your-github-user-name}``` and ```TOKEN={your-github-access-token}```
 
