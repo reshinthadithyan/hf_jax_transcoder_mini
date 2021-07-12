@@ -5,8 +5,8 @@
 2. Now run the following commands to download the required repos, prepare and process the data:
 
 ```
-git clone https://github.com/tree-sitter/tree-sitter-cpp
-git clone https://github.com/tree-sitter/tree-sitter-java.git
+$ git clone https://github.com/tree-sitter/tree-sitter-cpp
+$ git clone https://github.com/tree-sitter/tree-sitter-java.git
 
-make prepare-data
+$ make prepare-data
 ```
