@@ -468,7 +468,7 @@ def main():
         )
         model_inputs["labels"] = deepcopy(model_inputs["input_ids"])
         decoder_input_ids = shift_tokens_right_fn(
-            jnp.array(labels["input_ids"]), config.pad_token_id, config.decoder_start_token_id
+            jnp.array(model_inputs["input_ids"]), config.pad_token_id, config.decoder_start_token_id
         )
         model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
         model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
