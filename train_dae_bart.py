@@ -814,6 +814,8 @@ def main():
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
+            print(batch)
+            print(batch.keys())
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
 
