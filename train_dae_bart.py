@@ -834,7 +834,7 @@ def main():
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
         _metrics = {f"eval_{k}":mb_item(v) for k, v in train_metric.items()}
-        wandb.log({"eval_step":cur_step, **_metrics})
+        wandb.log({"eval_step":epoch, **_metrics})
         # ======================== Evaluating ==============================
         eval_metrics = []
         eval_preds = []
@@ -870,8 +870,8 @@ def main():
         # Print metrics and update progress bar
         desc = f"Epoch... ({epoch + 1}/{num_epochs} | Eval Loss: {eval_metrics['loss']} | {rouge_desc})"
         epochs.write(desc)
-        _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metric.items()}
-        wandb.log({"eval_step":cur_step, **_metrics})
+        _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metrics.items()}
+        wandb.log({"eval_step":epoch, **_metrics})
         epochs.desc = desc
 
         # Save metrics
