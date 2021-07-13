@@ -103,7 +103,8 @@ class ModelArguments:
         },
     )
 
-
+def mb_item(x):
+    return x.item() if hasattr(x, "item") else x
 @dataclass
 class DataTrainingArguments:
     """
@@ -625,7 +626,10 @@ if __name__ == "__main__":
                 epochs.write(
                     f"Step... ({cur_step} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']}, TPU : {jax.device_count()},)"
                 )
-                wandb.log({"step":cur_step,"loss":train_metric["loss"],"lr":train_metric["learning_rate"]})
+                _metrics = {k if k=="learning_rate" else f"train_{k}":mb_item(v.mean()) for k, v in train_metric.items()}
+                wandb.log({"training_step":cur_step, **_metrics}, commit=True)
+
+                #wandb.log({"step":cur_step,"loss":train_metric["loss"],"lr":train_metric["learning_rate"]})
                 train_metrics = []
 
         # ======================== Evaluating ==============================
@@ -653,7 +657,9 @@ if __name__ == "__main__":
         epochs.desc = (
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {eval_metrics['loss']}, Acc: {eval_metrics['accuracy']}, TPU : {jax.device_count()},)"
         )
-        wandb.log({"epoch":epoch+1,"loss":eval_metrics["loss"],"accuracy":eval_metrics["accuracy"]})
+        _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metrics.items()}
+        wandb.log({"eval_step":cur_step, **_metrics})
+        #wandb.log({"epoch":epoch+1,"loss":eval_metrics["loss"],"accuracy":eval_metrics["accuracy"]})
         # Save metrics
         if has_tensorboard and jax.process_index() == 0:
             cur_step = epoch * (len(tokenized_datasets["train"]) // train_batch_size)
