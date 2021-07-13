@@ -55,7 +55,7 @@ from transformers import (
 )
 from transformers.file_utils import is_offline_mode
 import wandb
-
+from utils.datacollator_for_dae import DataCollatorForDAE
 
 wandb.init(project='hf-flax-transcoder', entity='wandb')
 
@@ -244,7 +244,7 @@ class TrainState(train_state.TrainState):
         return jax_utils.replicate(self).replace(dropout_rng=shard_prng_key(self.dropout_rng))
 
 
-def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuffle: bool = False):
+def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,shuffle: bool = False):
     """
     Returns batches of size `batch_size` from truncated `dataset`, sharded over all local devices.
     Shuffle batches if `shuffle` is `True`.

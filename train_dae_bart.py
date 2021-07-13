@@ -19,6 +19,8 @@ Fine-tuning the library models for summarization.
 """
 # You can also adapt this script on your own sequence to sequence task. Pointers for this are left as comments.
 
+from copy import deepcopy
+from utils.datacollator_for_dae import DataCollatorForDAE
 import logging
 import os
 import sys
@@ -246,7 +248,7 @@ class TrainState(train_state.TrainState):
         return jax_utils.replicate(self).replace(dropout_rng=shard_prng_key(self.dropout_rng))
 
 
-def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuffle: bool = False):
+def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,data_collator:DataCollatorForDAE = DataCollatorForDAE, shuffle: bool = False):
     """
     Returns batches of size `batch_size` from truncated `dataset`, sharded over all local devices.
     Shuffle batches if `shuffle` is `True`.
@@ -263,8 +265,11 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
 
     for idx in batch_idx:
         batch = dataset[idx]
+        dum = deepcopy(batch)
+        for x in range(len(batch['input_ids'])):
+            batch['input_ids'][x] = data_collator.add_noise(batch['output_ids'][x])
+        print("DAE ------> ",dum==batch)
         batch = {k: jnp.array(v) for k, v in batch.items()}
-
         batch = shard(batch)
 
         yield batch
@@ -349,11 +354,14 @@ def main():
     # For CSV/JSON files this script will use the first column for the full texts and the second column for the
     # summaries (unless you specify column names for this with the `text_column` and `summary_column` arguments).
     #
-    if data_args.dataset_name is not None:
-        # Downloading and loading a dataset from the hub.
+    if data_args.dataset_name == "None":
         dataset = load_dataset(
             data_args.dataset_name, data_args.dataset_config_name, cache_dir=model_args.cache_dir, keep_in_memory=False
         )
+    elif data_args.dataset_name == "crosslm":
+        from utils.crosslm_data_utils import CrossLMDataset
+        CrossLM = CrossLMDataset()
+        dataset = CrossLM("test",combine=True)
     else:
         data_files = {}
         if data_args.train_file is not None:
@@ -405,7 +413,7 @@ def main():
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
 
-    prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
+    #prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
 
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
@@ -418,76 +426,62 @@ def main():
     else:
         logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
-
-    # Get the column names for input/target.
-    dataset_columns = summarization_name_mapping.get(data_args.dataset_name, None)
-    if data_args.text_column is None:
-        text_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+    #TODO : Have pasted the code over here.
+    # Preprocessing the datasets.
+    # We need to tokenize inputs and targets.
+    if training_args.do_train:
+        column_names = dataset["train"].column_names
+    elif training_args.do_eval:
+        column_names = dataset["validation"].column_names
+    elif training_args.do_predict:
+        column_names = dataset["test"].column_names
     else:
-        text_column = data_args.text_column
-        if text_column not in column_names:
-            raise ValueError(
-                f"--text_column' value '{data_args.text_column}' needs to be one of: {', '.join(column_names)}"
-            )
-    if data_args.summary_column is None:
-        summary_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
-    else:
-        summary_column = data_args.summary_column
-        if summary_column not in column_names:
-            raise ValueError(
-                f"--summary_column' value '{data_args.summary_column}' needs to be one of: {', '.join(column_names)}"
-            )
-
+        logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
+        return
+    dataset_columns = "code" if "code" in column_names else column_names[0]
     # Temporarily set max_target_length for training.
     max_target_length = data_args.max_target_length
-
+    # Check here
     # In Flax, for seq2seq models we need to pass `decoder_input_ids`
     # as the Flax models don't accept `labels`, we need to prepare the decoder_input_ids here
     # for that dynamically import the `shift_tokens_right` function from the model file
-    model_module = __import__(model.__module__, fromlist=["shift_tokens_tight"])
-    shift_tokens_right_fn = getattr(model_module, "shift_tokens_right")
-
+    #Modules to help in efficient batching
+    def get_str_len(example):
+        example['len'] = len(example['code'])
+        return example
+    def sort_by_len(dataset):
+        dataset = dataset.map(get_str_len)
+        dataset.set_format(type="numpy",columns="len",output_all_columns=True)
+        dataset = dataset.sort('len')
+        dataset = dataset.remove_columns('len')
+        return dataset
     # Setting padding="max_length" as we need fixed length inputs for jitted functions
-    def preprocess_function(examples):
+    def preprocess_function(examples,text_column="code"):
         inputs = examples[text_column]
-        targets = examples[summary_column]
-        inputs = [prefix + inp for inp in inputs]
+        prefix = examples["lang"]
+        inputs = [prefix[ind] + inputs[ind] for ind in range(len(inputs))]
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
-
-        # Setup the tokenizer for targets
-        with tokenizer.as_target_tokenizer():
-            labels = tokenizer(
-                targets, max_length=max_target_length, padding="max_length", truncation=True, return_tensors="np"
-            )
-
-        model_inputs["labels"] = labels["input_ids"]
-        decoder_input_ids = shift_tokens_right_fn(
-            jnp.array(labels["input_ids"]), config.pad_token_id, config.decoder_start_token_id
-        )
-        model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
-
-        # We need decoder_attention_mask so we can ignore pad tokens from loss
-        model_inputs["decoder_attention_mask"] = labels["attention_mask"]
-
+        model_inputs["output_ids"] = deepcopy(model_inputs["inputs_ids"])
         return model_inputs
-
     if training_args.do_train:
         if "train" not in dataset:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = dataset["train"]
+        # "For debugging purposes or quicker training, truncate the number of training examples to this value if set."
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
+        train_dataset = sort_by_len(train_dataset)
         train_dataset = train_dataset.map(
             preprocess_function,
             batched=True,
+            batch_size = int(training_args.per_device_train_batch_size)* jax.device_count(), #if this doesnt work, mul with * jax.device_count()
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on train dataset",
         )
-
     if training_args.do_eval:
         max_target_length = data_args.val_max_target_length
         if "validation" not in dataset:
@@ -495,15 +489,16 @@ def main():
         eval_dataset = dataset["validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+        eval_dataset = sort_by_len(eval_dataset)
         eval_dataset = eval_dataset.map(
             preprocess_function,
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
+            batch_size = int(training_args.per_device_eval_batch_size)* jax.device_count(),
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on validation dataset",
         )
-
     if training_args.do_predict:
         max_target_length = data_args.val_max_target_length
         if "test" not in dataset:
@@ -511,17 +506,121 @@ def main():
         predict_dataset = dataset["test"]
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+        predict_dataset = sort_by_len(predict_dataset)
         predict_dataset = predict_dataset.map(
             preprocess_function,
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
+            batch_size=int(training_args.per_device_eval_batch_size)* jax.device_count(),
             desc="Running tokenizer on prediction dataset",
         )
-
     # Metric
     metric = load_metric("rouge")
+    # Get the column names for input/target.
+    # dataset_columns = summarization_name_mapping.get(data_args.dataset_name, None)
+    # if data_args.text_column is None:
+    #     text_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+    # else:
+    #     text_column = data_args.text_column
+    #     if text_column not in column_names:
+    #         raise ValueError(
+    #             f"--text_column' value '{data_args.text_column}' needs to be one of: {', '.join(column_names)}"
+    #         )
+    # if data_args.summary_column is None:
+    #     summary_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
+    # else:
+    #     summary_column = data_args.summary_column
+    #     if summary_column not in column_names:
+    #         raise ValueError(
+    #             f"--summary_column' value '{data_args.summary_column}' needs to be one of: {', '.join(column_names)}"
+    #         )
+
+    # # Temporarily set max_target_length for training.
+    # max_target_length = data_args.max_target_length
+
+    # # In Flax, for seq2seq models we need to pass `decoder_input_ids`
+    # # as the Flax models don't accept `labels`, we need to prepare the decoder_input_ids here
+    # # for that dynamically import the `shift_tokens_right` function from the model file
+    # model_module = __import__(model.__module__, fromlist=["shift_tokens_tight"])
+    # shift_tokens_right_fn = getattr(model_module, "shift_tokens_right")
+
+    # # Setting padding="max_length" as we need fixed length inputs for jitted functions
+    # def preprocess_function(examples):
+    #     inputs = examples[text_column]
+    #     targets = examples[summary_column]
+    #     inputs = [prefix + inp for inp in inputs]
+    #     model_inputs = tokenizer(
+    #         inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
+    #     )
+
+    #     # Setup the tokenizer for targets
+    #     with tokenizer.as_target_tokenizer():
+    #         labels = tokenizer(
+    #             targets, max_length=max_target_length, padding="max_length", truncation=True, return_tensors="np"
+    #         )
+
+    #     model_inputs["labels"] = labels["input_ids"]
+    #     decoder_input_ids = shift_tokens_right_fn(
+    #         jnp.array(labels["input_ids"]), config.pad_token_id, config.decoder_start_token_id
+    #     )
+    #     model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
+
+    #     # We need decoder_attention_mask so we can ignore pad tokens from loss
+    #     model_inputs["decoder_attention_mask"] = labels["attention_mask"]
+
+    #     return model_inputs
+
+    # if training_args.do_train:
+    #     if "train" not in dataset:
+    #         raise ValueError("--do_train requires a train dataset")
+    #     train_dataset = dataset["train"]
+    #     if data_args.max_train_samples is not None:
+    #         train_dataset = train_dataset.select(range(data_args.max_train_samples))
+    #     train_dataset = train_dataset.map(
+    #         preprocess_function,
+    #         batched=True,
+    #         num_proc=data_args.preprocessing_num_workers,
+    #         remove_columns=column_names,
+    #         load_from_cache_file=not data_args.overwrite_cache,
+    #         desc="Running tokenizer on train dataset",
+    #     )
+
+    # if training_args.do_eval:
+    #     max_target_length = data_args.val_max_target_length
+    #     if "validation" not in dataset:
+    #         raise ValueError("--do_eval requires a validation dataset")
+    #     eval_dataset = dataset["validation"]
+    #     if data_args.max_eval_samples is not None:
+    #         eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+    #     eval_dataset = eval_dataset.map(
+    #         preprocess_function,
+    #         batched=True,
+    #         num_proc=data_args.preprocessing_num_workers,
+    #         remove_columns=column_names,
+    #         load_from_cache_file=not data_args.overwrite_cache,
+    #         desc="Running tokenizer on validation dataset",
+    #     )
+
+    # if training_args.do_predict:
+    #     max_target_length = data_args.val_max_target_length
+    #     if "test" not in dataset:
+    #         raise ValueError("--do_predict requires a test dataset")
+    #     predict_dataset = dataset["test"]
+    #     if data_args.max_predict_samples is not None:
+    #         predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+    #     predict_dataset = predict_dataset.map(
+    #         preprocess_function,
+    #         batched=True,
+    #         num_proc=data_args.preprocessing_num_workers,
+    #         remove_columns=column_names,
+    #         load_from_cache_file=not data_args.overwrite_cache,
+    #         desc="Running tokenizer on prediction dataset",
+    #     )
+
+    # # Metric
+    # metric = load_metric("rouge")
 
     def postprocess_text(preds, labels):
         preds = [pred.strip() for pred in preds]
