@@ -268,7 +268,7 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,data_
         batch = dataset[idx]
         dum = deepcopy(batch)
         for x in range(len(batch['input_ids'])):
-            batch['input_ids'][x] = data_collator.add_noise(batch['output_ids'][x])
+            batch['input_ids'][x] = data_collator.add_noise(batch['input_ids'][x])
         batch = {k: jnp.array(v) for k, v in batch.items() if k != "lang"}
         batch = shard(batch)
 
