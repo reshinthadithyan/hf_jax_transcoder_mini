@@ -317,7 +317,7 @@ class DataCollatorForDAE:
         return ds
 
 
-def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuffle: bool = False,coll):
+def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,coll : ,shuffle: bool = False):
     steps_per_epoch = len(dataset) // batch_size
     if shuffle:
         batch_idx = jax.random.permutation(rng, len(dataset))
@@ -779,6 +779,7 @@ def main():
             batch = next(train_loader)
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
+
 
         train_time += time.time() - train_start
 

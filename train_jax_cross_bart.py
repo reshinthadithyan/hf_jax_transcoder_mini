@@ -653,7 +653,7 @@ if __name__ == "__main__":
         epochs.desc = (
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {eval_metrics['loss']}, Acc: {eval_metrics['accuracy']}, TPU : {jax.device_count()},)"
         )
-
+        wandb.log({"epoch":epoch+1,"loss":eval_metrics["loss"],"accuracy":eval_metrics["accuracy"]})
         # Save metrics
         if has_tensorboard and jax.process_index() == 0:
             cur_step = epoch * (len(tokenized_datasets["train"]) // train_batch_size)
