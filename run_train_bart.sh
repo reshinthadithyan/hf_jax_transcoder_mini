@@ -1,5 +1,5 @@
 python3 train_jax_cross_bart.py \
-    --output_dir="~/models/transcoder-js-cs/transcoder-js-cs" \
+    --output_dir="~/models/transcoder-crossbartlm-js-cs" \
     --model_type="bart" \
     --config_name="./models/crossbart" \
     --tokenizer_name="./models/crossbart" \
@@ -11,6 +11,6 @@ python3 train_jax_cross_bart.py \
     --learning_rate="3e-4" \
     --warmup_steps="1000" \
     --overwrite_output_dir \
-    --num_train_epochs="15" \
+    --num_train_epochs="100" \
     --push_to_hub \
     --push_to_hub_model_id "reshinthadithyan\transcoder-crossbartlm-js-cs"

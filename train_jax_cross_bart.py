@@ -53,6 +53,7 @@ from transformers import (
     is_tensorboard_available,
     set_seed,
 )
+from transformers.utils.dummy_flax_objects import FlaxRobertaModel
 from utils.crosslm_data_utils import CrossLMDataset #using utils related to dataset loading
 from utils.transcoder import FlaxTranscoderBartModel
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_MASKED_LM_MAPPING.keys())
