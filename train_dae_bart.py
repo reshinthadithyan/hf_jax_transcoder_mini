@@ -833,14 +833,14 @@ def main():
         epochs.write(
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
-        _metrics = {f"eval_{k}":mb_item(v) for k, v in train_metric.items()}
-        wandb.log({"eval_step":epoch, **_metrics})
+        _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
+        wandb.log({"training_step":epoch, **_metrics})
         # ======================== Evaluating ==============================
         eval_metrics = []
         eval_preds = []
         eval_labels = []
 
-        eval_loader = data_loader(input_rng, eval_dataset, Collator_DAE,eval_batch_size)
+        eval_loader = data_loader(input_rng, eval_dataset, eval_batch_size,Collator_DAE)
         eval_steps = len(eval_dataset) // eval_batch_size
         for _ in tqdm(range(eval_steps), desc="Evaluating...", position=2, leave=False):
             # Model forward
@@ -887,7 +887,7 @@ def main():
         pred_generations = []
         pred_labels = []
 
-        pred_loader = data_loader(input_rng, predict_dataset,Collator_DAE, eval_batch_size)
+        pred_loader = data_loader(input_rng, predict_dataset, eval_batch_size,Collator_DAE)
         pred_steps = len(predict_dataset) // eval_batch_size
         for _ in tqdm(range(pred_steps), desc="Predicting...", position=2, leave=False):
             # Model forward
