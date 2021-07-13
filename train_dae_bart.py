@@ -927,6 +927,11 @@ def main():
                 push_to_hub=training_args.push_to_hub,
                 commit_message=f"Saving weights and logs of epoch {epoch+1}",
             )
+            tokenizer.save_pretrained(
+            training_args.output_dir,
+            push_to_hub=training_args.push_to_hub,
+            commit_message=f"Saving tokenizer and logs of epoch {epoch+1}",
+            )
 
 
 if __name__ == "__main__":

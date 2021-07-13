@@ -1,7 +1,7 @@
 import numpy as np
 from copy import deepcopy
 class DataCollatorForDAE:
-    def __init__(self,tokenizer,word_mask=0.15,word_dropout=0.15,word_shuffle=1):
+    def __init__(self,tokenizer,word_mask=0.15,word_dropout=0.05,word_shuffle=0):
         self.mask_index = tokenizer.mask_token_id
         self.pad_index = tokenizer.pad_token_id
         self.eos_index = tokenizer.sep_token_id
@@ -66,7 +66,7 @@ class DataCollatorForDAE:
         """
         length = self.get_before_pad(words)
         # print("init",len(words))
-        words = self.word_shuffle(words, length)
+        #words = self.word_shuffle(words, length)
         # print("shuffle",len(words))
         words = self.word_dropout(words, length)
         # print("after drop",len(words))
