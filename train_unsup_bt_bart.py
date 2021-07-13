@@ -54,10 +54,13 @@ from transformers import (
     is_tensorboard_available,
 )
 from transformers.file_utils import is_offline_mode
+import wandb
 
+
+wandb.init(project='hf-flax-transcoder', entity='wandb')
 
 logger = logging.getLogger(__name__)
-
+wandb_config = wandb.config
 try:
     nltk.data.find("tokenizers/punkt")
 except (LookupError, OSError):
@@ -263,7 +266,9 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int, shuf
         batch = shard(batch)
 
         yield batch
-
+#TODO : Add utils
+def mb_item(x):
+    return x.item() if hasattr(x, "item") else x
 
 def write_metric(summary_writer, train_metrics, eval_metrics, train_time, step):
     summary_writer.scalar("train_time", train_time, step)
@@ -717,7 +722,8 @@ def main():
         epochs.write(
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
-
+        _metrics = {f"eval_{k}":mb_item(v) for k, v in train_metric.items()}
+        wandb.log({"eval_step":cur_step, **_metrics})
         # ======================== Evaluating ==============================
         eval_metrics = []
         eval_preds = []
@@ -753,6 +759,8 @@ def main():
         # Print metrics and update progress bar
         desc = f"Epoch... ({epoch + 1}/{num_epochs} | Eval Loss: {eval_metrics['loss']} | {rouge_desc})"
         epochs.write(desc)
+        _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metrics.items()}
+        wandb.log({"eval_step":cur_step, **_metrics})
         epochs.desc = desc
 
         # Save metrics

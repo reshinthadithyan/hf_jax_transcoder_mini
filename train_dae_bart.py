@@ -68,6 +68,11 @@ except (LookupError, OSError):
     with FileLock(".lock") as lock:
         nltk.download("punkt", quiet=True)
 
+import wandb
+
+
+wandb.init(project='hf-flax-transcoder', entity='wandb')
+wandb_config = wandb.config
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
@@ -291,6 +296,9 @@ def create_learning_rate_fn(
     schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
     return schedule_fn
 
+#TODO : Add utils
+def mb_item(x):
+    return x.item() if hasattr(x, "item") else x
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -716,7 +724,8 @@ def main():
         epochs.write(
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
-
+        _metrics = {f"eval_{k}":mb_item(v) for k, v in train_metric.items()}
+        wandb.log({"eval_step":cur_step, **_metrics})
         # ======================== Evaluating ==============================
         eval_metrics = []
         eval_preds = []
@@ -752,6 +761,8 @@ def main():
         # Print metrics and update progress bar
         desc = f"Epoch... ({epoch + 1}/{num_epochs} | Eval Loss: {eval_metrics['loss']} | {rouge_desc})"
         epochs.write(desc)
+        _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metric.items()}
+        wandb.log({"eval_step":cur_step, **_metrics})
         epochs.desc = desc
 
         # Save metrics
