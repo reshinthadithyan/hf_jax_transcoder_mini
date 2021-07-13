@@ -447,6 +447,8 @@ def main():
     # as the Flax models don't accept `labels`, we need to prepare the decoder_input_ids here
     # for that dynamically import the `shift_tokens_right` function from the model file
     #Modules to help in efficient batching
+    model_module = __import__(model.__module__, fromlist=["shift_tokens_tight"])
+    shift_tokens_right_fn = getattr(model_module, "shift_tokens_right")
     def get_str_len(example):
         example['len'] = len(example['code'])
         return example
@@ -464,7 +466,12 @@ def main():
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
-        model_inputs["output_ids"] = deepcopy(model_inputs["input_ids"])
+        model_inputs["labels"] = deepcopy(model_inputs["input_ids"])
+        decoder_input_ids = shift_tokens_right_fn(
+            jnp.array(labels["input_ids"]), config.pad_token_id, config.decoder_start_token_id
+        )
+        model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
+        model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
         return model_inputs
     if training_args.do_train:
         if "train" not in dataset:
