@@ -73,11 +73,12 @@ except (LookupError, OSError):
 import wandb
 
 
-wandb.init(project='hf-flax-transcoder', entity='wandb')
+#wandb.init(project='hf-flax-transcoder', entity='wandb')
 wandb_config = wandb.config
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
+
 
 
 @dataclass
@@ -248,7 +249,7 @@ class TrainState(train_state.TrainState):
         return jax_utils.replicate(self).replace(dropout_rng=shard_prng_key(self.dropout_rng))
 
 
-def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,data_collator:DataCollatorForDAE = DataCollatorForDAE, shuffle: bool = False):
+def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,data_collator,shuffle: bool = False):
     """
     Returns batches of size `batch_size` from truncated `dataset`, sharded over all local devices.
     Shuffle batches if `shuffle` is `True`.
@@ -268,8 +269,7 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,data_
         dum = deepcopy(batch)
         for x in range(len(batch['input_ids'])):
             batch['input_ids'][x] = data_collator.add_noise(batch['output_ids'][x])
-        print("DAE ------> ",dum==batch)
-        batch = {k: jnp.array(v) for k, v in batch.items()}
+        batch = {k: jnp.array(v) for k, v in batch.items() if k != "lang"}
         batch = shard(batch)
 
         yield batch
@@ -413,7 +413,8 @@ def main():
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
 
-    #prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
+    #prefix = data_args.source_prefix if data_args.source_prefix is not None else "
+    Collator_DAE = DataCollatorForDAE(tokenizer) 
 
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
@@ -453,7 +454,7 @@ def main():
         dataset = dataset.map(get_str_len)
         dataset.set_format(type="numpy",columns="len",output_all_columns=True)
         dataset = dataset.sort('len')
-        dataset = dataset.remove_columns('len')
+        #dataset = dataset.remove_columns('len')
         return dataset
     # Setting padding="max_length" as we need fixed length inputs for jitted functions
     def preprocess_function(examples,text_column="code"):
@@ -463,7 +464,7 @@ def main():
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
-        model_inputs["output_ids"] = deepcopy(model_inputs["inputs_ids"])
+        model_inputs["output_ids"] = deepcopy(model_inputs["input_ids"])
         return model_inputs
     if training_args.do_train:
         if "train" not in dataset:
@@ -480,7 +481,7 @@ def main():
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on train dataset",
+            #desc="Running tokenizer on train dataset",
         )
     if training_args.do_eval:
         max_target_length = data_args.val_max_target_length
@@ -497,7 +498,7 @@ def main():
             remove_columns=column_names,
             batch_size = int(training_args.per_device_eval_batch_size)* jax.device_count(),
             load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on validation dataset",
+            #desc="Running tokenizer on validation dataset",
         )
     if training_args.do_predict:
         max_target_length = data_args.val_max_target_length
@@ -514,7 +515,7 @@ def main():
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
             batch_size=int(training_args.per_device_eval_batch_size)* jax.device_count(),
-            desc="Running tokenizer on prediction dataset",
+            #desc="Running tokenizer on prediction dataset",
         )
     # Metric
     metric = load_metric("rouge")
@@ -808,7 +809,7 @@ def main():
         train_metrics = []
 
         # Generate an epoch by shuffling sampling indices from the train dataset
-        train_loader = data_loader(input_rng, train_dataset, train_batch_size, shuffle=True)
+        train_loader = data_loader(input_rng, train_dataset, train_batch_size,Collator_DAE, shuffle=True)
         steps_per_epoch = len(train_dataset) // train_batch_size
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
@@ -830,7 +831,7 @@ def main():
         eval_preds = []
         eval_labels = []
 
-        eval_loader = data_loader(input_rng, eval_dataset, eval_batch_size)
+        eval_loader = data_loader(input_rng, eval_dataset, Collator_DAE,eval_batch_size)
         eval_steps = len(eval_dataset) // eval_batch_size
         for _ in tqdm(range(eval_steps), desc="Evaluating...", position=2, leave=False):
             # Model forward
@@ -877,7 +878,7 @@ def main():
         pred_generations = []
         pred_labels = []
 
-        pred_loader = data_loader(input_rng, predict_dataset, eval_batch_size)
+        pred_loader = data_loader(input_rng, predict_dataset,Collator_DAE, eval_batch_size)
         pred_steps = len(predict_dataset) // eval_batch_size
         for _ in tqdm(range(pred_steps), desc="Predicting...", position=2, leave=False):
             # Model forward
