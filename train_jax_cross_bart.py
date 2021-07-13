@@ -56,9 +56,15 @@ from transformers import (
 from transformers.utils.dummy_flax_objects import FlaxRobertaModel
 from utils.crosslm_data_utils import CrossLMDataset #using utils related to dataset loading
 from utils.transcoder import FlaxTranscoderBartModel
+import wandb
+
+
+wandb.init(project='hf-flax-transcoder', entity='wandb')
+
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_MASKED_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
+wandb_config = wandb.config
 
 @dataclass
 class ModelArguments:
@@ -554,7 +560,6 @@ if __name__ == "__main__":
         metrics = jax.lax.pmean(
             {"loss": loss, "learning_rate": linear_decay_lr_schedule_fn(state.step)}, axis_name="batch"
         )
-
         return new_state, metrics, new_dropout_rng
 
     # Create parallel version of the train step
@@ -620,7 +625,7 @@ if __name__ == "__main__":
                 epochs.write(
                     f"Step... ({cur_step} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']}, TPU : {jax.device_count()},)"
                 )
-
+                wandb.log({"step":cur_step,"loss":train_metric["loss"],"lr":train_metric["lr"]})
                 train_metrics = []
 
         # ======================== Evaluating ==============================
