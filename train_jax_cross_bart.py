@@ -625,7 +625,7 @@ if __name__ == "__main__":
                 epochs.write(
                     f"Step... ({cur_step} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']}, TPU : {jax.device_count()},)"
                 )
-                wandb.log({"step":cur_step,"loss":train_metric["loss"],"lr":train_metric["lr"]})
+                wandb.log({"step":cur_step,"loss":train_metric["loss"],"lr":train_metric["learning_rate"]})
                 train_metrics = []
 
         # ======================== Evaluating ==============================
