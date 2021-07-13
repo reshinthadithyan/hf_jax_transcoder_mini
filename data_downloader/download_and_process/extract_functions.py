@@ -1,12 +1,18 @@
 from tree_sitter import Language, Parser
 from tree_hugger.core import CPPParser, JavaParser
 from tqdm.auto import tqdm
+import logging
 
 import pandas as pd
 import numpy as np
 
 class FunctionExtractor:
   def __init__(self):
+    logging.basicConfig(
+      filename="extract_functions.log", 
+      filemode="w",
+      format="%(name)s - %(levelname)s - %(message)s"
+      )
     cpp_lang = 'tree-sitter-cpp'
     java_lang = 'tree-sitter-java'
 
@@ -41,7 +47,7 @@ class FunctionExtractor:
         pass
 
       except Exception as e:
-        print(e)
+        logging.error(e)
 
     final_df = {"code": preprocessed_code}
     final_df = pd.DataFrame(final_df)
@@ -73,7 +79,7 @@ class FunctionExtractor:
         break
 
       except Exception as e:
-        print(e)
+        logging.error(e)
 
     final_df = {"code": preprocessed_code}
     final_df = pd.DataFrame(final_df)

@@ -2,8 +2,14 @@ from tqdm.auto import tqdm
 import glob
 import pandas as pd
 from typer import run
+import logging
 
 def create_processed_csv():
+    logging.basicConfig(
+      filename="preprocess_data.log", 
+      filemode="w",
+      format="%(name)s - %(levelname)s - %(message)s"
+      )
     files = [code for code in glob.iglob('output'+'/**/*.cpp', recursive=True)]
     java_files = [code for code in glob.iglob('output'+'/**/*.java', recursive=True)]
     files.extend(java_files)
@@ -26,7 +32,7 @@ def create_processed_csv():
             break
         
         except Exception as e:
-            print(e)
+            logging.error(e)
 
     df.to_csv("raw_data.csv", index=False)
 
