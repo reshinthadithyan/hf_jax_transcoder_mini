@@ -73,7 +73,7 @@ except (LookupError, OSError):
 import wandb
 
 
-#wandb.init(project='hf-flax-transcoder', entity='wandb')
+wandb.init(project='hf-flax-transcoder', entity='wandb')
 wandb_config = wandb.config
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING.keys())
@@ -227,19 +227,19 @@ class DataTrainingArguments:
             self.val_max_target_length = self.max_target_length
 
 
-summarization_name_mapping = {
-    "amazon_reviews_multi": ("review_body", "review_title"),
-    "big_patent": ("description", "abstract"),
-    "cnn_dailymail": ("article", "highlights"),
-    "orange_sum": ("text", "summary"),
-    "pn_summary": ("article", "summary"),
-    "psc": ("extract_text", "summary_text"),
-    "samsum": ("dialogue", "summary"),
-    "thaisum": ("body", "summary"),
-    "xglue": ("news_body", "news_title"),
-    "xsum": ("document", "summary"),
-    "wiki_summary": ("article", "highlights"),
-}
+# summarization_name_mapping = {
+#     "amazon_reviews_multi": ("review_body", "review_title"),
+#     "big_patent": ("description", "abstract"),
+#     "cnn_dailymail": ("article", "highlights"),
+#     "orange_sum": ("text", "summary"),
+#     "pn_summary": ("article", "summary"),
+#     "psc": ("extract_text", "summary_text"),
+#     "samsum": ("dialogue", "summary"),
+#     "thaisum": ("body", "summary"),
+#     "xglue": ("news_body", "news_title"),
+#     "xsum": ("document", "summary"),
+#     "wiki_summary": ("article", "highlights"),
+# }
 
 
 class TrainState(train_state.TrainState):
@@ -488,7 +488,7 @@ def main():
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
-            #desc="Running tokenizer on train dataset",
+            desc="Running tokenizer on train dataset",
         )
     if training_args.do_eval:
         max_target_length = data_args.val_max_target_length
@@ -505,7 +505,7 @@ def main():
             remove_columns=column_names,
             batch_size = int(training_args.per_device_eval_batch_size)* jax.device_count(),
             load_from_cache_file=not data_args.overwrite_cache,
-            #desc="Running tokenizer on validation dataset",
+            desc="Running tokenizer on validation dataset",
         )
     if training_args.do_predict:
         max_target_length = data_args.val_max_target_length
@@ -522,7 +522,7 @@ def main():
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
             batch_size=int(training_args.per_device_eval_batch_size)* jax.device_count(),
-            #desc="Running tokenizer on prediction dataset",
+            desc="Running tokenizer on prediction dataset",
         )
     # Metric
     metric = load_metric("rouge")
@@ -821,8 +821,8 @@ def main():
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
-            print(batch)
-            print(batch.keys())
+            #print(batch)
+            #print(batch.keys())
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
 
