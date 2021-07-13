@@ -456,7 +456,7 @@ def main():
         dataset = dataset.map(get_str_len)
         dataset.set_format(type="numpy",columns="len",output_all_columns=True)
         dataset = dataset.sort('len')
-        #dataset = dataset.remove_columns('len')
+        dataset = dataset.remove_columns('len')
         return dataset
     # Setting padding="max_length" as we need fixed length inputs for jitted functions
     def preprocess_function(examples,text_column="code"):
