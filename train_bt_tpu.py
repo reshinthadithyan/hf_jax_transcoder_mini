@@ -461,7 +461,7 @@ def main():
         for keys in model_inputs:
             if len(model_inputs[keys].shape) == 2:
                 if jax.device_count() > 1:
-                    batch_dup[keys] = model_inputs[keys].reshape(jax.device_count(),batch_size,-1)
+                    batch_dup[keys] = model_inputs[keys].reshape(jax.device_count(),batch_size_need,-1)
             else:
                 batch_dup[keys] = model_inputs[keys] 
         return batch_dup
@@ -746,31 +746,6 @@ def main():
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
         translated_encoded = tokenize_special(translated_decoded,batch)
         return translated_encoded
-    def forward_translate(batch):
-        #TODO : Write a Forward Translate Function in torch.no_grad
-        """Forward Translate with no Backpropagation"""
-        print(batch,batch.keys(),batch["input_ids"].shape)
-        batch_dup = {}
-        for keys in batch:
-            if len(batch[keys].shape) == 3:
-                batch_dup[keys] = jnp.reshape(batch[keys],(32,256)) #jnp.squeeze(batch[keys],0)
-            else:
-                batch_dup[keys] = batch[keys] 
-        #batch = batch_dup#{k: jnp.unsqueeze(v,0) for k, v in batch.items() if len(v.shape) == 2}
-        translated = model.generate(batch['input_ids']).sequences#,**kwargs)#.sequences
-
-        detok_translated = tokenizer.batch_decode(translated)#, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-        #lang = lang_key[re.findall("><.+>",detok_translated[0])[1:]]
-        detok_translated_suffix = detok_translated#[seq + lang for seq in detok_translated]
-        tok_translated_suffix = tokenize_special(detok_translated_suffix,batch)
-        batch_dup = {}
-        for keys in batch:
-            if len(batch[keys].shape) == 2:
-                batch_dup[keys] = jnp.reshape(batch[keys],(8,4,256)) #jnp.squeeze(batch[keys],0)
-            else:
-                batch_dup[keys] = batch[keys]        
-
-        return tok_translated_suffix 
 
     # Define gradient update step fn
     def train_step(state, batch, label_smoothing_factor=0.0):
