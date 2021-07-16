@@ -49,7 +49,7 @@ except (LookupError, OSError):
 import wandb
 
 
-wandb.init(project='hf-flax-transcoder', entity='wandb')
+#wandb.init(project='hf-flax-transcoder', entity='wandb')
 wandb_config = wandb.config
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING.keys())
