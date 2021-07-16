@@ -829,8 +829,14 @@ def main():
             batch = p_forward_translate(batch)
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
-            _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
-            wandb.log({"training_step":train_step_cnt, **_metrics})
+            #_metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
+            try:
+                wandb.log({"training_step":train_step_cnt,"train_step_loss":train_metric["loss"]})
+            except:
+                try:
+                    wandb.log({"training_step":train_step_cnt,"train_step_loss":mb_item(train_metric["loss"])})
+                except:
+                    pass
             train_step_cnt+=1
         train_time += time.time() - train_start
 
@@ -855,8 +861,14 @@ def main():
             batch = p_forward_translate(batch)
             labels = batch["labels"]
             metrics = p_eval_step(state.params, batch)
-            _metrics = {f"train_{k}":mb_item(v) for k, v in metrics.items()}
-            wandb.log({"training_step":eval_step_cnt, **_metrics})
+            try:
+                wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":metrics["loss"]})
+            except:
+                try:
+                    wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":mb_item(metrics["loss"])})
+
+                except:
+                    pass
             eval_step_cnt += 1
             #eval_metrics.append(metrics)
 
