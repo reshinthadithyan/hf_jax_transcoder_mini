@@ -433,6 +433,7 @@ def main():
         inputs = examples[text_column]
         prefix = examples["lang"]
         inputs = [prefix[ind] + inputs[ind] for ind in range(len(inputs))]
+        print(inputs)
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
