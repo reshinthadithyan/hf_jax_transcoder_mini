@@ -854,19 +854,18 @@ def main():
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
 
-        if jax.process_index() == 0:
-            params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
-            model.save_pretrained(
-                training_args.output_dir,
-                params=params,
-                push_to_hub=training_args.push_to_hub,
-                commit_message=f"Saving weights and logs of epoch {epoch+1}",
-            )
-            tokenizer.save_pretrained(
+        params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
+        model.save_pretrained(
             training_args.output_dir,
+            params=params,
             push_to_hub=training_args.push_to_hub,
-            commit_message=f"Saving tokenizer and logs of epoch {epoch+1}",
-            )
+            commit_message=f"Saving weights and logs of epoch {epoch+1}",
+        )
+        tokenizer.save_pretrained(
+        training_args.output_dir,
+        push_to_hub=training_args.push_to_hub,
+        commit_message=f"Saving tokenizer and logs of epoch {epoch+1}",
+        )
 
 
 if __name__ == "__main__":
