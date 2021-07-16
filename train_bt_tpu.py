@@ -744,6 +744,7 @@ def main():
         p_params = jax_utils.replicate(state.params)#deepcopy(model).params)
         translated = p_generate_forward_translation(p_params,batch)
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
+        print(translated_decoded)
         translated_encoded = tokenize_special(translated_decoded,batch)
         return translated_encoded
 
@@ -822,7 +823,7 @@ def main():
 
         # Generate an epoch by shuffling sampling indices from the train dataset
         train_loader = data_loader(input_rng, train_dataset, train_batch_size, shuffle=True)
-        steps_per_epoch = len(train_dataset) // train_batch_size
+        steps_per_epoch = 2#len(train_dataset) // train_batch_size
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
@@ -846,103 +847,6 @@ def main():
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
 
-        # # _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
-        # # wandb.log({"training_epoch":epoch, **_metrics})
-        # # ======================== Evaluating ==============================
-        # eval_metrics = []
-        # eval_preds = []
-        # eval_labels = []
-
-        # eval_loader = data_loader(input_rng, eval_dataset, eval_batch_size)
-        # eval_steps = len(eval_dataset) // eval_batch_size
-        # for _ in tqdm(range(eval_steps), desc="Evaluating...", position=2, leave=False):
-        #     # Model forward
-        #     batch = next(eval_loader)
-        #     batch = p_forward_translate(batch)
-        #     labels = batch["labels"]
-        #     metrics = p_eval_step(state.params, batch)
-        #     desc = f"Eval Loss: {metrics['loss']}"
-        #     epochs.write(desc)
-        #     # try:
-        #     #     wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":metrics["loss"]})
-        #     # except:
-        #     #     try:
-        #     #         wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":mb_item(metrics["loss"])})
-
-        #     #     except:
-        #     #         pass
-        #     #eval_step_cnt += 1
-        #     #eval_metrics.append(metrics)
-
-        #     # generation
-        #     if data_args.predict_with_generate:
-        #         generated_ids = p_generate_step(state.params, batch)
-        #         eval_preds.extend(jax.device_get(generated_ids.reshape(-1, gen_kwargs["max_length"])))
-        #         eval_labels.extend(jax.device_get(labels.reshape(-1, labels.shape[-1])))
-
-        # # normalize eval metrics
-        # # eval_metrics = get_metrics(eval_metrics)
-        # # eval_metrics = jax.tree_map(jnp.mean, eval_metrics)
-
-        # # compute ROUGE metrics
-        # rouge_desc = ""
-        # if data_args.predict_with_generate:
-        #     rouge_metrics = compute_metrics(eval_preds, eval_labels)
-        #     eval_metrics.update(rouge_metrics)
-        #     rouge_desc = " ".join([f"Eval {key}: {value} |" for key, value in rouge_metrics.items()])
-
-        # # Print metrics and update progress bar
-        # desc = f"Epoch... ({epoch + 1}/{num_epochs} | Eval Loss: {eval_metrics['loss']} | {rouge_desc})"
-        # epochs.write(desc)
-        # # _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metrics.items()}
-        # # wandb.log({"eval_step":epoch, **_metrics})
-        # epochs.desc = desc
-
-        # # Save metrics
-        # if has_tensorboard and jax.process_index() == 0:
-        #     cur_step = epoch * (len(train_dataset) // train_batch_size)
-        #     write_metric(summary_writer, train_metrics, eval_metrics, train_time, cur_step)
-
-    # ======================== Prediction loop ==============================
-    if training_args.do_predict:
-        logger.info("*** Predict ***")
-
-        pred_metrics = []
-        pred_generations = []
-        pred_labels = []
-
-        pred_loader = data_loader(input_rng, predict_dataset, eval_batch_size)
-        pred_steps = len(predict_dataset) // eval_batch_size
-        for _ in tqdm(range(pred_steps), desc="Predicting...", position=2, leave=False):
-            # Model forward
-            batch = next(pred_loader)
-            labels = batch["labels"]
-
-            metrics = p_eval_step(state.params, batch)
-            pred_metrics.append(metrics)
-
-            # generation
-            if data_args.predict_with_generate:
-                generated_ids = p_generate_step(state.params, batch)
-                pred_generations.extend(jax.device_get(generated_ids.reshape(-1, gen_kwargs["max_length"])))
-                pred_labels.extend(jax.device_get(labels.reshape(-1, labels.shape[-1])))
-
-        # normalize prediction metrics
-        pred_metrics = get_metrics(pred_metrics)
-        pred_metrics = jax.tree_map(jnp.mean, pred_metrics)
-
-        # compute ROUGE metrics
-        rouge_desc = ""
-        if data_args.predict_with_generate:
-            rouge_metrics = compute_metrics(pred_generations, pred_labels)
-            pred_metrics.update(rouge_metrics)
-            rouge_desc = " ".join([f"Predict {key}: {value} |" for key, value in rouge_metrics.items()])
-
-        # Print metrics
-        desc = f"Predict Loss: {pred_metrics['loss']} | {rouge_desc})"
-        logger.info(desc)
-
-        # save checkpoint after each epoch and push checkpoint to the hub
         if jax.process_index() == 0:
             params = jax.device_get(jax.tree_map(lambda x: x[0], state.params))
             model.save_pretrained(
