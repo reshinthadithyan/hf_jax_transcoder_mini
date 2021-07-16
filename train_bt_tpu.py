@@ -752,7 +752,7 @@ def main():
                 translated_decoded_prefix.append(inp+"<j>")
             else:
                 translated_decoded_prefix.append(inp+"<jc>")
-        print(translated)
+        print(translated_decoded_prefix)
         translated_encoded = tokenize_special(translated_decoded_prefix,batch)
         return translated_encoded
 
