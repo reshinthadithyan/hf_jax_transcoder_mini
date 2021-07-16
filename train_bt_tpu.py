@@ -736,7 +736,7 @@ def main():
         loss = loss * padding_mask
         loss = loss.sum() / padding_mask.sum()
         return loss
-    lang_key = {"<java>":"<csharp>","<csharp>":"<java>"}
+    lang_key = {"<j>":"<c>","<c>":"<j>"}
     def generate_forward_translation(params,batch):
         translated = model.generate(batch["input_ids"],num_beams=1)
         return translated
