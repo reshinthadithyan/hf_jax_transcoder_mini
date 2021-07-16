@@ -736,6 +736,7 @@ def main():
     def forward_translate(batch):
         #TODO : Write a Forward Translate Function in torch.no_grad
         """Forward Translate with no Backpropagation"""
+        print(batch,batch.keys(),batch["input_ids"].shape)
         batch_dup = {}
         for keys in batch:
             if len(batch[keys].shape) == 3:
