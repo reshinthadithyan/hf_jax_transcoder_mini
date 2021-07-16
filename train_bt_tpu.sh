@@ -15,6 +15,6 @@ python3 train_bt_tpu.py \
     --learning_rate="3e-4" \
     --warmup_steps="1000" \
     --overwrite_output_dir \
-    --num_train_epochs="35" \
+    --num_train_epochs="5" \
     --push_to_hub \
     --push_to_hub_model_id "reshinthadith/transcoder-java-cs"

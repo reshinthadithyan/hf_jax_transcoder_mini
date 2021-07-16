@@ -49,7 +49,7 @@ except (LookupError, OSError):
 import wandb
 
 
-#wandb.init(project='hf-flax-transcoder', entity='wandb')
+wandb.init(project='hf-flax-transcoder', entity='wandb')
 wandb_config = wandb.config
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING.keys())
@@ -808,6 +808,9 @@ def main():
     logger.info(f"  Total optimization steps = {total_train_steps}")
 
     train_time = 0
+    train_step_cnt = 0
+    eval_step_cnt = 0
+    pred_step_cnt  = 0
     epochs = tqdm(range(num_epochs), desc=f"Epoch ... (1/{num_epochs})", position=0)
     for epoch in epochs:
         # ======================== Training ================================
@@ -824,10 +827,11 @@ def main():
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
             batch = p_forward_translate(batch)
-            print("step1_preproc_completed")
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
-
+            _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
+            wandb.log({"training_step":train_step_cnt, **_metrics})
+            train_step_cnt+=1
         train_time += time.time() - train_start
 
         train_metric = unreplicate(train_metric)
@@ -835,8 +839,9 @@ def main():
         epochs.write(
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
+
         _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
-        wandb.log({"training_step":epoch, **_metrics})
+        wandb.log({"training_epoch":epoch, **_metrics})
         # ======================== Evaluating ==============================
         eval_metrics = []
         eval_preds = []
@@ -847,10 +852,13 @@ def main():
         for _ in tqdm(range(eval_steps), desc="Evaluating...", position=2, leave=False):
             # Model forward
             batch = next(eval_loader)
+            batch = p_forward_translate(batch)
             labels = batch["labels"]
-
             metrics = p_eval_step(state.params, batch)
-            eval_metrics.append(metrics)
+            _metrics = {f"train_{k}":mb_item(v) for k, v in metrics.items()}
+            wandb.log({"training_step":eval_step_cnt, **_metrics})
+            eval_step_cnt += 1
+            #eval_metrics.append(metrics)
 
             # generation
             if data_args.predict_with_generate:
