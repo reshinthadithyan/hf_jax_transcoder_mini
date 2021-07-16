@@ -735,7 +735,7 @@ def main():
     lang_key = {"<java>":"<csharp>","<csharp>":"<java>"}
     def generate_forward_translation(params,batch):
         translated = model.generate(batch["input_ids"])
-        return translated
+        return translated.sequences
     def p_forward_translate(batch):
         p_generate_forward_translation = jax.pmap(generate_forward_translation,"batch")
         p_params = jax_utils.replicate(model.params)
