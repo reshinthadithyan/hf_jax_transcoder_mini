@@ -1,24 +1,4 @@
-
-#!/usr/bin/env python
-# coding=utf-8
-# Copyright 2021 The HuggingFace Team All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""
-Fine-tuning the library models for summarization.
-"""
-# You can also adapt this script on your own sequence to sequence task. Pointers for this are left as comments.
-
+from copy import deepcopy
 import logging
 import os
 import sys
@@ -27,13 +7,11 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import Callable, Optional
-
 import datasets
 import nltk  # Here to have a nice missing dependency error message early on
 import numpy as np
 from datasets import Dataset, load_dataset, load_metric
 from tqdm import tqdm
-
 import jax
 import jax.numpy as jnp
 import optax
@@ -48,19 +26,15 @@ from transformers import (
     FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING,
     AutoConfig,
     AutoTokenizer,
-    FlaxAutoModelForSeq2SeqLM,
+    FlaxBartForConditionalGeneration,#FlaxAutoModelForSeq2SeqLM,
     HfArgumentParser,
     TrainingArguments,
     is_tensorboard_available,
 )
 from transformers.file_utils import is_offline_mode
-import wandb
-from utils.datacollator_for_dae import DataCollatorForDAE
-
-wandb.init(project='hf-flax-transcoder', entity='wandb')
 
 logger = logging.getLogger(__name__)
-wandb_config = wandb.config
+
 try:
     nltk.data.find("tokenizers/punkt")
 except (LookupError, OSError):
@@ -71,9 +45,15 @@ except (LookupError, OSError):
     with FileLock(".lock") as lock:
         nltk.download("punkt", quiet=True)
 
+import wandb
+
+
+wandb.init(project='hf-flax-transcoder', entity='wandb')
+wandb_config = wandb.config
 
 MODEL_CONFIG_CLASSES = list(FLAX_MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
+
 
 
 @dataclass
@@ -222,19 +202,19 @@ class DataTrainingArguments:
             self.val_max_target_length = self.max_target_length
 
 
-summarization_name_mapping = {
-    "amazon_reviews_multi": ("review_body", "review_title"),
-    "big_patent": ("description", "abstract"),
-    "cnn_dailymail": ("article", "highlights"),
-    "orange_sum": ("text", "summary"),
-    "pn_summary": ("article", "summary"),
-    "psc": ("extract_text", "summary_text"),
-    "samsum": ("dialogue", "summary"),
-    "thaisum": ("body", "summary"),
-    "xglue": ("news_body", "news_title"),
-    "xsum": ("document", "summary"),
-    "wiki_summary": ("article", "highlights"),
-}
+# summarization_name_mapping = {
+#     "amazon_reviews_multi": ("review_body", "review_title"),
+#     "big_patent": ("description", "abstract"),
+#     "cnn_dailymail": ("article", "highlights"),
+#     "orange_sum": ("text", "summary"),
+#     "pn_summary": ("article", "summary"),
+#     "psc": ("extract_text", "summary_text"),
+#     "samsum": ("dialogue", "summary"),
+#     "thaisum": ("body", "summary"),
+#     "xglue": ("news_body", "news_title"),
+#     "xsum": ("document", "summary"),
+#     "wiki_summary": ("article", "highlights"),
+# }
 
 
 class TrainState(train_state.TrainState):
@@ -260,15 +240,12 @@ def data_loader(rng: jax.random.PRNGKey, dataset: Dataset, batch_size: int,shuff
     batch_idx = batch_idx.reshape((steps_per_epoch, batch_size))
 
     for idx in batch_idx:
+        #TODO : Take off DataCollator
         batch = dataset[idx]
-        batch = {k: jnp.array(v) for k, v in batch.items()}
-
+        batch = {k: jnp.array(v) for k, v in batch.items() if k != "lang"}
         batch = shard(batch)
-
         yield batch
-#TODO : Add utils
-def mb_item(x):
-    return x.item() if hasattr(x, "item") else x
+
 
 def write_metric(summary_writer, train_metrics, eval_metrics, train_time, step):
     summary_writer.scalar("train_time", train_time, step)
@@ -296,6 +273,9 @@ def create_learning_rate_fn(
     schedule_fn = optax.join_schedules(schedules=[warmup_fn, decay_fn], boundaries=[num_warmup_steps])
     return schedule_fn
 
+#TODO : Add utils
+def mb_item(x):
+    return x.item() if hasattr(x, "item") else x
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -346,11 +326,14 @@ def main():
     # For CSV/JSON files this script will use the first column for the full texts and the second column for the
     # summaries (unless you specify column names for this with the `text_column` and `summary_column` arguments).
     #
-    if data_args.dataset_name is not None:
-        # Downloading and loading a dataset from the hub.
+    if data_args.dataset_name == "None":
         dataset = load_dataset(
             data_args.dataset_name, data_args.dataset_config_name, cache_dir=model_args.cache_dir, keep_in_memory=False
         )
+    elif data_args.dataset_name == "crosslm":
+        from utils.crosslm_data_utils import CrossLMDataset
+        CrossLM = CrossLMDataset()
+        dataset = CrossLM("test",combine=True)
     else:
         data_files = {}
         if data_args.train_file is not None:
@@ -391,18 +374,16 @@ def main():
         )
 
     if model_args.model_name_or_path:
-        model = FlaxAutoModelForSeq2SeqLM.from_pretrained(
+        model = FlaxBartForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path, config=config, seed=training_args.seed, dtype=getattr(jnp, model_args.dtype)
         )
     else:
-        model = FlaxAutoModelForSeq2SeqLM.from_config(
+        model = FlaxBartForConditionalGeneration.from_config(
             config, seed=training_args.seed, dtype=getattr(jnp, model_args.dtype)
         )
 
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
-
-    prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
 
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
@@ -415,76 +396,88 @@ def main():
     else:
         logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
         return
-
-    # Get the column names for input/target.
-    dataset_columns = summarization_name_mapping.get(data_args.dataset_name, None)
-    if data_args.text_column is None:
-        text_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+    #TODO : Have pasted the code over here.
+    # Preprocessing the datasets.
+    # We need to tokenize inputs and targets.
+    if training_args.do_train:
+        column_names = dataset["train"].column_names
+    elif training_args.do_eval:
+        column_names = dataset["validation"].column_names
+    elif training_args.do_predict:
+        column_names = dataset["test"].column_names
     else:
-        text_column = data_args.text_column
-        if text_column not in column_names:
-            raise ValueError(
-                f"--text_column' value '{data_args.text_column}' needs to be one of: {', '.join(column_names)}"
-            )
-    if data_args.summary_column is None:
-        summary_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
-    else:
-        summary_column = data_args.summary_column
-        if summary_column not in column_names:
-            raise ValueError(
-                f"--summary_column' value '{data_args.summary_column}' needs to be one of: {', '.join(column_names)}"
-            )
-
+        logger.info("There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
+        return
+    dataset_columns = "code" if "code" in column_names else column_names[0]
     # Temporarily set max_target_length for training.
     max_target_length = data_args.max_target_length
-
+    # Check here
     # In Flax, for seq2seq models we need to pass `decoder_input_ids`
     # as the Flax models don't accept `labels`, we need to prepare the decoder_input_ids here
     # for that dynamically import the `shift_tokens_right` function from the model file
+    #Modules to help in efficient batching
     model_module = __import__(model.__module__, fromlist=["shift_tokens_tight"])
     shift_tokens_right_fn = getattr(model_module, "shift_tokens_right")
-
+    # def get_str_len(example):
+    #     example['len'] = len(example['code'])
+    #     return example
+    # def sort_by_len(dataset):
+    #     dataset = dataset.map(get_str_len)
+    #     dataset.set_format(type="numpy",columns="len",output_all_columns=True)
+    #     dataset = dataset.sort('len')
+    #     dataset = dataset.remove_columns('len')
+    #     return dataset
     # Setting padding="max_length" as we need fixed length inputs for jitted functions
-    def preprocess_function(examples):
+    def preprocess_function(examples,text_column="code"):
         inputs = examples[text_column]
-        targets = examples[summary_column]
-        inputs = [prefix + inp for inp in inputs]
+        prefix = examples["lang"]
+        inputs = [prefix[ind] + inputs[ind] for ind in range(len(inputs))]
+        model_inputs = tokenizer(
+            inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
+        )
+        model_inputs["labels"] = deepcopy(model_inputs["input_ids"])
+        decoder_input_ids = shift_tokens_right_fn(
+            jnp.array(model_inputs["input_ids"]), config.pad_token_id, config.decoder_start_token_id
+        )
+        model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
+        model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
+        return model_inputs
+    def tokenize_special(inputs,orig_batch):
+        """Special Tokenizer Function post forward translation"""
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
 
-        # Setup the tokenizer for targets
-        with tokenizer.as_target_tokenizer():
-            labels = tokenizer(
-                targets, max_length=max_target_length, padding="max_length", truncation=True, return_tensors="np"
-            )
-
-        model_inputs["labels"] = labels["input_ids"]
+        model_inputs["labels"] = np.array(orig_batch["input_ids"],copy=False)
         decoder_input_ids = shift_tokens_right_fn(
-            jnp.array(labels["input_ids"]), config.pad_token_id, config.decoder_start_token_id
+            jnp.array(model_inputs["input_ids"]), config.pad_token_id, config.decoder_start_token_id
         )
         model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
-
-        # We need decoder_attention_mask so we can ignore pad tokens from loss
-        model_inputs["decoder_attention_mask"] = labels["attention_mask"]
-
-        return model_inputs
-
+        model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
+        batch_dup = {}
+        for keys in model_inputs:
+            if len(model_inputs[keys].shape) == 2:
+                batch_dup[keys] = jnp.expand_dims(model_inputs[keys],0)
+            else:
+                batch_dup[keys] = model_inputs[keys] 
+        return batch_dup
     if training_args.do_train:
         if "train" not in dataset:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = dataset["train"]
+        # "For debugging purposes or quicker training, truncate the number of training examples to this value if set."
         if data_args.max_train_samples is not None:
             train_dataset = train_dataset.select(range(data_args.max_train_samples))
+        #train_dataset = sort_by_len(train_dataset)
         train_dataset = train_dataset.map(
             preprocess_function,
             batched=True,
+            batch_size = int(training_args.per_device_train_batch_size)* jax.device_count(), #if this doesnt work, mul with * jax.device_count()
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on train dataset",
+            #desc="Running tokenizer on train dataset",
         )
-
     if training_args.do_eval:
         max_target_length = data_args.val_max_target_length
         if "validation" not in dataset:
@@ -492,15 +485,16 @@ def main():
         eval_dataset = dataset["validation"]
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+        #eval_dataset = sort_by_len(eval_dataset)
         eval_dataset = eval_dataset.map(
             preprocess_function,
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
+            batch_size = int(training_args.per_device_eval_batch_size)* jax.device_count(),
             load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on validation dataset",
+            #desc="Running tokenizer on validation dataset",
         )
-
     if training_args.do_predict:
         max_target_length = data_args.val_max_target_length
         if "test" not in dataset:
@@ -508,17 +502,121 @@ def main():
         predict_dataset = dataset["test"]
         if data_args.max_predict_samples is not None:
             predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+        #predict_dataset = sort_by_len(predict_dataset)
         predict_dataset = predict_dataset.map(
             preprocess_function,
             batched=True,
             num_proc=data_args.preprocessing_num_workers,
             remove_columns=column_names,
             load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on prediction dataset",
+            batch_size=int(training_args.per_device_eval_batch_size)* jax.device_count(),
+            #desc="Running tokenizer on prediction dataset",
         )
-
     # Metric
     metric = load_metric("rouge")
+    # Get the column names for input/target.
+    # dataset_columns = summarization_name_mapping.get(data_args.dataset_name, None)
+    # if data_args.text_column is None:
+    #     text_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+    # else:
+    #     text_column = data_args.text_column
+    #     if text_column not in column_names:
+    #         raise ValueError(
+    #             f"--text_column' value '{data_args.text_column}' needs to be one of: {', '.join(column_names)}"
+    #         )
+    # if data_args.summary_column is None:
+    #     summary_column = dataset_columns[1] if dataset_columns is not None else column_names[1]
+    # else:
+    #     summary_column = data_args.summary_column
+    #     if summary_column not in column_names:
+    #         raise ValueError(
+    #             f"--summary_column' value '{data_args.summary_column}' needs to be one of: {', '.join(column_names)}"
+    #         )
+
+    # # Temporarily set max_target_length for training.
+    # max_target_length = data_args.max_target_length
+
+    # # In Flax, for seq2seq models we need to pass `decoder_input_ids`
+    # # as the Flax models don't accept `labels`, we need to prepare the decoder_input_ids here
+    # # for that dynamically import the `shift_tokens_right` function from the model file
+    # model_module = __import__(model.__module__, fromlist=["shift_tokens_tight"])
+    # shift_tokens_right_fn = getattr(model_module, "shift_tokens_right")
+
+    # # Setting padding="max_length" as we need fixed length inputs for jitted functions
+    # def preprocess_function(examples):
+    #     inputs = examples[text_column]
+    #     targets = examples[summary_column]
+    #     inputs = [prefix + inp for inp in inputs]
+    #     model_inputs = tokenizer(
+    #         inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
+    #     )
+
+    #     # Setup the tokenizer for targets
+    #     with tokenizer.as_target_tokenizer():
+    #         labels = tokenizer(
+    #             targets, max_length=max_target_length, padding="max_length", truncation=True, return_tensors="np"
+    #         )
+
+    #     model_inputs["labels"] = labels["input_ids"]
+    #     decoder_input_ids = shift_tokens_right_fn(
+    #         jnp.array(labels["input_ids"]), config.pad_token_id, config.decoder_start_token_id
+    #     )
+    #     model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
+
+    #     # We need decoder_attention_mask so we can ignore pad tokens from loss
+    #     model_inputs["decoder_attention_mask"] = labels["attention_mask"]
+
+    #     return model_inputs
+
+    # if training_args.do_train:
+    #     if "train" not in dataset:
+    #         raise ValueError("--do_train requires a train dataset")
+    #     train_dataset = dataset["train"]
+    #     if data_args.max_train_samples is not None:
+    #         train_dataset = train_dataset.select(range(data_args.max_train_samples))
+    #     train_dataset = train_dataset.map(
+    #         preprocess_function,
+    #         batched=True,
+    #         num_proc=data_args.preprocessing_num_workers,
+    #         remove_columns=column_names,
+    #         load_from_cache_file=not data_args.overwrite_cache,
+    #         desc="Running tokenizer on train dataset",
+    #     )
+
+    # if training_args.do_eval:
+    #     max_target_length = data_args.val_max_target_length
+    #     if "validation" not in dataset:
+    #         raise ValueError("--do_eval requires a validation dataset")
+    #     eval_dataset = dataset["validation"]
+    #     if data_args.max_eval_samples is not None:
+    #         eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
+    #     eval_dataset = eval_dataset.map(
+    #         preprocess_function,
+    #         batched=True,
+    #         num_proc=data_args.preprocessing_num_workers,
+    #         remove_columns=column_names,
+    #         load_from_cache_file=not data_args.overwrite_cache,
+    #         desc="Running tokenizer on validation dataset",
+    #     )
+
+    # if training_args.do_predict:
+    #     max_target_length = data_args.val_max_target_length
+    #     if "test" not in dataset:
+    #         raise ValueError("--do_predict requires a test dataset")
+    #     predict_dataset = dataset["test"]
+    #     if data_args.max_predict_samples is not None:
+    #         predict_dataset = predict_dataset.select(range(data_args.max_predict_samples))
+    #     predict_dataset = predict_dataset.map(
+    #         preprocess_function,
+    #         batched=True,
+    #         num_proc=data_args.preprocessing_num_workers,
+    #         remove_columns=column_names,
+    #         load_from_cache_file=not data_args.overwrite_cache,
+    #         desc="Running tokenizer on prediction dataset",
+    #     )
+
+    # # Metric
+    # metric = load_metric("rouge")
 
     def postprocess_text(preds, labels):
         preds = [pred.strip() for pred in preds]
@@ -633,15 +731,33 @@ def main():
         loss = loss * padding_mask
         loss = loss.sum() / padding_mask.sum()
         return loss
+    lang_key = {"<java>":"<csharp>","<csharp>":"<java>"}
+
+    def forward_translate(batch):
+        #TODO : Write a Forward Translate Function in torch.no_grad
+        """Forward Translate with no Backpropagation"""
+        batch_dup = {}
+        for keys in batch:
+            if len(batch[keys].shape) == 3:
+                batch_dup[keys] = jnp.squeeze(batch[keys],0)
+            else:
+                batch_dup[keys] = batch[keys] 
+        batch = batch_dup#{k: jnp.unsqueeze(v,0) for k, v in batch.items() if len(v.shape) == 2}
+        translated = model.generate(batch['input_ids']).sequences#,**kwargs)#.sequences
+        detok_translated = tokenizer.batch_decode(translated)#, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+        #lang = lang_key[re.findall("><.+>",detok_translated[0])[1:]]
+        detok_translated_suffix = detok_translated#[seq + lang for seq in detok_translated]
+        tok_translated_suffix = tokenize_special(detok_translated_suffix,batch)
+
+
+        return tok_translated_suffix 
 
     # Define gradient update step fn
     def train_step(state, batch, label_smoothing_factor=0.0):
         dropout_rng, new_dropout_rng = jax.random.split(state.dropout_rng)
-
         def compute_loss(params):
             labels = batch.pop("labels")
             logits = state.apply_fn(**batch, params=params, dropout_rng=dropout_rng, train=True)[0]
-            #TODO : Back Translation to be added
             loss = loss_fn(logits, labels, batch["decoder_attention_mask"], label_smoothing_factor)
             return loss
 
@@ -712,6 +828,7 @@ def main():
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
+            batch = forward_translate(batch)
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
 
@@ -722,8 +839,8 @@ def main():
         epochs.write(
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
-        _metrics = {f"eval_{k}":mb_item(v) for k, v in train_metric.items()}
-        wandb.log({"eval_step":cur_step, **_metrics})
+        _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
+        wandb.log({"training_step":epoch, **_metrics})
         # ======================== Evaluating ==============================
         eval_metrics = []
         eval_preds = []
@@ -760,7 +877,7 @@ def main():
         desc = f"Epoch... ({epoch + 1}/{num_epochs} | Eval Loss: {eval_metrics['loss']} | {rouge_desc})"
         epochs.write(desc)
         _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metrics.items()}
-        wandb.log({"eval_step":cur_step, **_metrics})
+        wandb.log({"eval_step":epoch, **_metrics})
         epochs.desc = desc
 
         # Save metrics
@@ -815,6 +932,11 @@ def main():
                 params=params,
                 push_to_hub=training_args.push_to_hub,
                 commit_message=f"Saving weights and logs of epoch {epoch+1}",
+            )
+            tokenizer.save_pretrained(
+            training_args.output_dir,
+            push_to_hub=training_args.push_to_hub,
+            commit_message=f"Saving tokenizer and logs of epoch {epoch+1}",
             )
 
 
