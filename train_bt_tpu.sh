@@ -9,11 +9,11 @@ python3 train_bt_tpu.py \
     --max_target_length="256"\
     --do_train\
     --do_eval\
-    --do_predict\
-    --per_device_train_batch_size="4" \
-    --per_device_eval_batch_size="4" \
+    --per_device_train_batch_size="8" \
+    --per_device_eval_batch_size="8" \
     --learning_rate="3e-4" \
     --warmup_steps="1000" \
+    --save_steps="5"\
     --overwrite_output_dir \
     --num_train_epochs="5" \
     --push_to_hub \
