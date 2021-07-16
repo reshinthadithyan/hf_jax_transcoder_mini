@@ -1,7 +1,7 @@
 python3 train_dae_bart.py \
     --output_dir="~/models/transcoder-dae-js-cs" \
     --model_type="bart" \
-    --config_name="reshinthadith/transcoder-crossbartlm-js-cs" \
+    --model_name_or_path="reshinthadith/transcoder-crossbartlm-js-cs" \
     --tokenizer_name="reshinthadith/transcoder-crossbartlm-js-cs" \
     --dataset_name="crosslm" \
     --dataset_config_name="unshuffled_deduplicated_als" \
