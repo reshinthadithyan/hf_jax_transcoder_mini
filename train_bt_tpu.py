@@ -737,7 +737,7 @@ def main():
         return loss
     lang_key = {"<j>":"<c>","<c>":"<j>","##":"","#":""}
     def generate_forward_translation(params,batch):
-        translated = model.generate(batch["input_ids"],num_beams=1)
+        translated = model.generate(batch["input_ids"],num_beams=3,top_k=10,max_length=256)
         return translated
     def p_forward_translate(batch):
         p_generate_forward_translation = jax.pmap(generate_forward_translation,"batch")
