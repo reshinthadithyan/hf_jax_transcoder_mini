@@ -743,6 +743,7 @@ def main():
         p_params = jax_utils.replicate(model.params)
         translated = p_generate_forward_translation(p_params,batch)
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
+        print(translated_decoded)
         translated_encoded = tokenize_special(translated_decoded)
         return translated_encoded
     def forward_translate(batch):
