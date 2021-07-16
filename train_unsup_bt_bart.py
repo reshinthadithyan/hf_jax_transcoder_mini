@@ -738,11 +738,11 @@ def main():
         """Forward Translate with no Backpropagation"""
         print(batch,batch.keys(),batch["input_ids"].shape)
         batch_dup = {}
-        for keys in batch:
-            if len(batch[keys].shape) == 3:
-                batch_dup[keys] = jnp.squeeze(batch[keys],0)
-            else:
-                batch_dup[keys] = batch[keys] 
+        # for keys in batch:
+        #     if len(batch[keys].shape) == 3:
+        #         batch_dup[keys] = jnp.squeeze(batch[keys],0)
+        #     else:
+        #         batch_dup[keys] = batch[keys] 
         batch = batch_dup#{k: jnp.unsqueeze(v,0) for k, v in batch.items() if len(v.shape) == 2}
         print(batch,batch.keys(),batch["input_ids"].shape)
         translated = model.generate(batch['input_ids']).sequences#,**kwargs)#.sequences
