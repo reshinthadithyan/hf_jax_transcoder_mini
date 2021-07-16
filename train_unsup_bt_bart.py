@@ -31,6 +31,7 @@ from transformers import (
     TrainingArguments,
     is_tensorboard_available,
 )
+from transformers import training_args
 from transformers.file_utils import is_offline_mode
 
 logger = logging.getLogger(__name__)
@@ -732,7 +733,16 @@ def main():
         loss = loss.sum() / padding_mask.sum()
         return loss
     lang_key = {"<java>":"<csharp>","<csharp>":"<java>"}
-
+    def generate_forward_translation(params,batch):
+        translated = model.generate(batch["input_ids"])
+        return translated
+    def p_forward_translate(batch):
+        p_generate_forward_translation = jax.pmap(generate_forward_translation,"batch")
+        p_params = model.params
+        translated = p_generate_forward_translation(p_params,batch)
+        translated_decoded = tokenizer.batch_decode(translated.reshape(-1,training_args.max_source_length),skip_special_tokens=True)
+        
+        return translated_decoded
     def forward_translate(batch):
         #TODO : Write a Forward Translate Function in torch.no_grad
         """Forward Translate with no Backpropagation"""
@@ -835,7 +845,11 @@ def main():
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
-            batch = forward_translate(batch)
+            if jax.device_count() > 1:
+                batch = p_forward_translate(batch)
+                print(batch)
+            else:
+                batch = forward_translate(batch)
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
 
