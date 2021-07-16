@@ -735,7 +735,7 @@ def main():
         loss = loss * padding_mask
         loss = loss.sum() / padding_mask.sum()
         return loss
-    lang_key = {"<j":"<c>","<c":"<j>","##":"","#":""}
+    lang_key = {"<j>":"<c>","<c>":"<j>","##":"","#":""}
     def generate_forward_translation(params,batch):
         translated = model.generate(batch["input_ids"],num_beams=1)
         return translated
@@ -744,8 +744,14 @@ def main():
         p_params = jax_utils.replicate(state.params)#deepcopy(model).params)
         translated = p_generate_forward_translation(p_params,batch)
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=False)
-        translated_decoded_prefix =[inp+lang_key[inp[:1]] for inp in translated_decoded]
-        print(translated_decoded_prefix)
+        translated_decoded_prefix =[]#inp+lang_key[inp[:1]] for inp in translated_decoded]
+        for inp in translated_decoded:
+            if "<j>" in inp:
+                translated_decoded_prefix.append(inp+"<c>")
+            elif "<c>" in inp:
+                translated_decoded_prefix.append(inp+"<j>")
+            else:
+                translated_decoded_prefix.append(inp+"<jc>")
         translated_encoded = tokenize_special(translated_decoded_prefix,batch)
         return translated_encoded
 
