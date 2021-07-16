@@ -830,13 +830,13 @@ def main():
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
             #_metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
-            try:
-                wandb.log({"training_step":train_step_cnt,"train_step_loss":train_metric["loss"]})
-            except:
-                try:
-                    wandb.log({"training_step":train_step_cnt,"train_step_loss":mb_item(train_metric["loss"])})
-                except:
-                    pass
+            # try:
+            #     wandb.log({"training_step":train_step_cnt,"train_step_loss":train_metric["loss"]})
+            # except:
+            #     try:
+            #         wandb.log({"training_step":train_step_cnt,"train_step_loss":mb_item(train_metric["loss"])})
+            #     except:
+            #         pass
             train_step_cnt+=1
         train_time += time.time() - train_start
 
@@ -846,8 +846,8 @@ def main():
             f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
         )
 
-        _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
-        wandb.log({"training_epoch":epoch, **_metrics})
+        # _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
+        # wandb.log({"training_epoch":epoch, **_metrics})
         # ======================== Evaluating ==============================
         eval_metrics = []
         eval_preds = []
@@ -861,14 +861,14 @@ def main():
             batch = p_forward_translate(batch)
             labels = batch["labels"]
             metrics = p_eval_step(state.params, batch)
-            try:
-                wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":metrics["loss"]})
-            except:
-                try:
-                    wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":mb_item(metrics["loss"])})
+            # try:
+            #     wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":metrics["loss"]})
+            # except:
+            #     try:
+            #         wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":mb_item(metrics["loss"])})
 
-                except:
-                    pass
+            #     except:
+            #         pass
             eval_step_cnt += 1
             #eval_metrics.append(metrics)
 
@@ -892,8 +892,8 @@ def main():
         # Print metrics and update progress bar
         desc = f"Epoch... ({epoch + 1}/{num_epochs} | Eval Loss: {eval_metrics['loss']} | {rouge_desc})"
         epochs.write(desc)
-        _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metrics.items()}
-        wandb.log({"eval_step":epoch, **_metrics})
+        # _metrics = {f"eval_{k}":mb_item(v) for k, v in eval_metrics.items()}
+        # wandb.log({"eval_step":epoch, **_metrics})
         epochs.desc = desc
 
         # Save metrics
