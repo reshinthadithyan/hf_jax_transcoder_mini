@@ -1,4 +1,4 @@
-python3 train_jax_cross_bart.py \
+python3 jc_mlm_cross_bart.py \
     --output_dir="~/models/transcoder-encoder-mlm-jc" \
     --model_type="bart" \
     --config_name="./models/crossbartmlm" \
