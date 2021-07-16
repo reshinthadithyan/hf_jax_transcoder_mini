@@ -736,6 +736,8 @@ def main():
         return loss
     lang_key = {"<java>":"<csharp>","<csharp>":"<java>"}
     def generate_forward_translation(params,batch):
+        for k in batch:
+            print(batch[k].shape)
         translated = model.generate(batch["input_ids"])
         return translated
     def p_forward_translate(batch):
@@ -848,6 +850,7 @@ def main():
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
             if jax.device_count() > 1:
+                print("inside pmap")
                 batch = p_forward_translate(batch)
             else:
                 batch = forward_translate(batch)
