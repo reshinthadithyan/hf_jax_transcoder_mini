@@ -443,7 +443,7 @@ def main():
         model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
         model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
         return model_inputs
-    def tokenize_special(inputs,orig_batch,batch_size):
+    def tokenize_special(inputs,orig_batch):
 
         """Special Tokenizer Function post forward translation"""
         model_inputs = tokenizer(
@@ -457,6 +457,7 @@ def main():
         model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
         model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
         batch_dup = {}
+        batch_size_need = orig_batch["input_ids"].shape[1]
         for keys in model_inputs:
             if len(model_inputs[keys].shape) == 2:
                 if jax.device_count() > 1:
@@ -743,8 +744,7 @@ def main():
         p_params = jax_utils.replicate(model.params)
         translated = p_generate_forward_translation(p_params,batch)
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
-        print(translated_decoded)
-        translated_encoded = tokenize_special(translated_decoded)
+        translated_encoded = tokenize_special(translated_decoded,batch)
         return translated_encoded
     def forward_translate(batch):
         #TODO : Write a Forward Translate Function in torch.no_grad
