@@ -860,7 +860,9 @@ def main():
             batch = next(eval_loader)
             batch = p_forward_translate(batch)
             labels = batch["labels"]
-            #metrics = p_eval_step(state.params, batch)
+            metrics = p_eval_step(state.params, batch)
+        desc = f"Eval Loss: {metrics['loss']}"
+        epochs.write(desc)
             # try:
             #     wandb.log({"eval_step":eval_step_cnt,"eval_step_loss":metrics["loss"]})
             # except:
@@ -879,8 +881,8 @@ def main():
                 eval_labels.extend(jax.device_get(labels.reshape(-1, labels.shape[-1])))
 
         # normalize eval metrics
-        eval_metrics = get_metrics(eval_metrics)
-        eval_metrics = jax.tree_map(jnp.mean, eval_metrics)
+        # eval_metrics = get_metrics(eval_metrics)
+        # eval_metrics = jax.tree_map(jnp.mean, eval_metrics)
 
         # compute ROUGE metrics
         rouge_desc = ""
