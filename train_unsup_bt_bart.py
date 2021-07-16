@@ -449,7 +449,7 @@ def main():
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
-
+        batch_size = len(batch["input_ids"][0])
         model_inputs["labels"] = np.array(batch["input_ids"],copy=False)
         decoder_input_ids = shift_tokens_right_fn(
             jnp.array(model_inputs["input_ids"]), config.pad_token_id, config.decoder_start_token_id
@@ -743,7 +743,7 @@ def main():
         p_params = jax_utils.replicate(model.params)
         translated = p_generate_forward_translation(p_params,batch)
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
-        translated_encoded = tokenize_special(translated_decoded)#,batch["input_ids"].shape[1])
+        translated_encoded = tokenize_special(translated_decoded,batch)#["input_ids"].shape[1])
         return translated_encoded
     def forward_translate(batch):
         #TODO : Write a Forward Translate Function in torch.no_grad
