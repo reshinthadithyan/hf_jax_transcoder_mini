@@ -737,12 +737,12 @@ def main():
         #TODO : Write a Forward Translate Function in torch.no_grad
         """Forward Translate with no Backpropagation"""
         print(batch,batch.keys(),batch["input_ids"].shape)
-        #batch_dup = {}
-        # for keys in batch:
-        #     if len(batch[keys].shape) == 3:
-        #         batch_dup[keys] = jnp.squeeze(batch[keys],0)
-        #     else:
-        #         batch_dup[keys] = batch[keys] 
+        batch_dup = {}
+        for keys in batch:
+            if len(batch[keys].shape) == 3:
+                batch_dup[keys] = jnp.reshape(batch[keys],(32,256)) #jnp.squeeze(batch[keys],0)
+            else:
+                batch_dup[keys] = batch[keys] 
         #batch = batch_dup#{k: jnp.unsqueeze(v,0) for k, v in batch.items() if len(v.shape) == 2}
         translated = model.generate(batch['input_ids']).sequences#,**kwargs)#.sequences
 
@@ -750,7 +750,12 @@ def main():
         #lang = lang_key[re.findall("><.+>",detok_translated[0])[1:]]
         detok_translated_suffix = detok_translated#[seq + lang for seq in detok_translated]
         tok_translated_suffix = tokenize_special(detok_translated_suffix,batch)
-
+        batch_dup = {}
+        for keys in batch:
+            if len(batch[keys].shape) == 2:
+                batch_dup[keys] = jnp.reshape(batch[keys],(8,4,256)) #jnp.squeeze(batch[keys],0)
+            else:
+                batch_dup[keys] = batch[keys]        
 
         return tok_translated_suffix 
 
