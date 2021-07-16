@@ -443,7 +443,8 @@ def main():
         model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
         model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
         return model_inputs
-    def tokenize_special(inputs,orig_batch):
+    def tokenize_special(inputs,orig_batch,batch_size):
+
         """Special Tokenizer Function post forward translation"""
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
@@ -458,7 +459,8 @@ def main():
         batch_dup = {}
         for keys in model_inputs:
             if len(model_inputs[keys].shape) == 2:
-                batch_dup[keys] = jnp.expand_dims(model_inputs[keys],0)
+                if jax.device_count() > 1:
+                    batch_dup[keys] = model_inputs[keys].reshape(jax.device_count(),batch_size,-1)
             else:
                 batch_dup[keys] = model_inputs[keys] 
         return batch_dup
@@ -740,10 +742,9 @@ def main():
         p_generate_forward_translation = jax.pmap(generate_forward_translation,"batch")
         p_params = jax_utils.replicate(model.params)
         translated = p_generate_forward_translation(p_params,batch)
-        print(translated.sequences.shape)
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
-        
-        return translated_decoded
+        translated_encoded = tokenize_special(translated_decoded)
+        return translated_encoded
     def forward_translate(batch):
         #TODO : Write a Forward Translate Function in torch.no_grad
         """Forward Translate with no Backpropagation"""
@@ -848,7 +849,6 @@ def main():
             batch = next(train_loader)
             if jax.device_count() > 1:
                 batch = p_forward_translate(batch)
-                print(batch)
             else:
                 batch = forward_translate(batch)
             state, train_metric = p_train_step(state, batch)
