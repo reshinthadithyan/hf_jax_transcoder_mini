@@ -743,16 +743,15 @@ def main():
         p_generate_forward_translation = jax.pmap(generate_forward_translation,"batch")
         p_params = jax_utils.replicate(state.params)#deepcopy(model).params)
         translated = p_generate_forward_translation(p_params,batch)
-        translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=False)
+        translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
         translated_decoded_prefix =[]#inp+lang_key[inp[:1]] for inp in translated_decoded]
         for inp in translated_decoded:
-            if "<j>" in inp:
-                translated_decoded_prefix.append(inp+"<c>")
-            elif "<c>" in inp:
-                translated_decoded_prefix.append(inp+"<j>")
-            else:
-                translated_decoded_prefix.append(inp+"<jc>")
-        print(translated_decoded_prefix)
+            # if "<j>" in inp:
+            #     translated_decoded_prefix.append(inp+"<c>")
+            # elif "<c>" in inp:
+            #     translated_decoded_prefix.append(inp+"<j>")
+            # else:
+            translated_decoded_prefix.append(inp+"<jc>")
         translated_encoded = tokenize_special(translated_decoded_prefix,batch)
         return translated_encoded
 
@@ -831,7 +830,7 @@ def main():
 
         # Generate an epoch by shuffling sampling indices from the train dataset
         train_loader = data_loader(input_rng, train_dataset, train_batch_size, shuffle=True)
-        steps_per_epoch = 2#len(train_dataset) // train_batch_size
+        steps_per_epoch = len(train_dataset) // train_batch_size
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)

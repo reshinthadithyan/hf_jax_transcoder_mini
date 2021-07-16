@@ -15,6 +15,6 @@ python3 train_bt_tpu.py \
     --warmup_steps="1000" \
     --save_steps="5"\
     --overwrite_output_dir \
-    --num_train_epochs="1" \
+    --num_train_epochs="50" \
     --push_to_hub \
     --push_to_hub_model_id "reshinthadith/transcoder-translate-jc"
