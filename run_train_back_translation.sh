@@ -10,7 +10,7 @@ python3 train_unsup_bt_bart.py \
     --do_train\
     --do_eval\
     --do_predict\
-    --per_device_train_batch_size="2" \
+    --per_device_train_batch_size="4" \
     --per_device_eval_batch_size="4" \
     --learning_rate="3e-4" \
     --warmup_steps="1000" \
