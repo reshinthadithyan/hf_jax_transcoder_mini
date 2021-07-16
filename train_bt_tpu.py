@@ -823,10 +823,8 @@ def main():
         # train
         for _ in tqdm(range(steps_per_epoch), desc="Training...", position=1, leave=False):
             batch = next(train_loader)
-            if jax.device_count() > 1:
-                batch = p_forward_translate(batch)
-            else:
-                batch = forward_translate(batch)
+            batch = p_forward_translate(batch)
+            print("step1_preproc_completed")
             state, train_metric = p_train_step(state, batch)
             train_metrics.append(train_metric)
 
