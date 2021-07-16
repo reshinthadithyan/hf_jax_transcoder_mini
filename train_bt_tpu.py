@@ -840,11 +840,11 @@ def main():
         #     train_step_cnt+=1
         # train_time += time.time() - train_start
 
-        # train_metric = unreplicate(train_metric)
+        train_metric = unreplicate(train_metric)
 
-        # epochs.write(
-        #     f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
-        # )
+        epochs.write(
+            f"Epoch... ({epoch + 1}/{num_epochs} | Loss: {train_metric['loss']}, Learning Rate: {train_metric['learning_rate']})"
+        )
 
         # # _metrics = {f"train_{k}":mb_item(v) for k, v in train_metric.items()}
         # # wandb.log({"training_epoch":epoch, **_metrics})
