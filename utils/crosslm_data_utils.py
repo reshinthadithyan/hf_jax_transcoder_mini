@@ -11,8 +11,8 @@ class CrossLMDataset:
         def meta_process(data):
             """additional datapoint level post porcessing"""
             return data
-        lang_1_set = Dataset.from_dict({"code":dataset[self.lang_1],"lang":["<java>"]*len(dataset[self.lang_1])})
-        lang_2_set = Dataset.from_dict({"code":dataset[self.lang_2],"lang":["<csharp>"]*len(dataset[self.lang_2])})
+        lang_1_set = Dataset.from_dict({"code":dataset[self.lang_1],"lang":["<j>"]*len(dataset[self.lang_1])})
+        lang_2_set = Dataset.from_dict({"code":dataset[self.lang_2],"lang":["<c>"]*len(dataset[self.lang_2])})
         lang_1_set,lang_2_set  = lang_1_set.map(meta_process,batch_size=self.bs),lang_2_set.map(meta_process,batch_size=self.bs)
         mlm_dataset = concatenate_datasets([lang_1_set,lang_2_set]).shuffle(seed=SEED)
         return mlm_dataset
