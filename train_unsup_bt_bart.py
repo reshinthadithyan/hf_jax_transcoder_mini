@@ -443,14 +443,14 @@ def main():
         model_inputs["decoder_input_ids"] = np.asarray(decoder_input_ids)
         model_inputs["decoder_attention_mask"] = deepcopy(model_inputs["attention_mask"])
         return model_inputs
-    def tokenize_special(inputs,orig_batch,batch_size):
+    def tokenize_special(inputs,batch):
 
         """Special Tokenizer Function post forward translation"""
         model_inputs = tokenizer(
             inputs, max_length=data_args.max_source_length, padding="max_length", truncation=True, return_tensors="np"
         )
 
-        model_inputs["labels"] = np.array(orig_batch["input_ids"],copy=False)
+        model_inputs["labels"] = np.array(batch["input_ids"],copy=False)
         decoder_input_ids = shift_tokens_right_fn(
             jnp.array(model_inputs["input_ids"]), config.pad_token_id, config.decoder_start_token_id
         )
@@ -743,7 +743,7 @@ def main():
         p_params = jax_utils.replicate(model.params)
         translated = p_generate_forward_translation(p_params,batch)
         translated_decoded = tokenizer.batch_decode(translated.sequences.reshape(-1,translated.sequences.shape[-1]),skip_special_tokens=True)
-        translated_encoded = tokenize_special(translated_decoded,batch,batch["input_ids"].shape[1])
+        translated_encoded = tokenize_special(translated_decoded)#,batch["input_ids"].shape[1])
         return translated_encoded
     def forward_translate(batch):
         #TODO : Write a Forward Translate Function in torch.no_grad
