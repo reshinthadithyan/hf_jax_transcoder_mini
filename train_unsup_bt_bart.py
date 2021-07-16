@@ -737,15 +737,15 @@ def main():
         #TODO : Write a Forward Translate Function in torch.no_grad
         """Forward Translate with no Backpropagation"""
         print(batch,batch.keys(),batch["input_ids"].shape)
-        batch_dup = {}
+        #batch_dup = {}
         # for keys in batch:
         #     if len(batch[keys].shape) == 3:
         #         batch_dup[keys] = jnp.squeeze(batch[keys],0)
         #     else:
         #         batch_dup[keys] = batch[keys] 
-        batch = batch_dup#{k: jnp.unsqueeze(v,0) for k, v in batch.items() if len(v.shape) == 2}
-        print(batch,batch.keys(),batch["input_ids"].shape)
+        #batch = batch_dup#{k: jnp.unsqueeze(v,0) for k, v in batch.items() if len(v.shape) == 2}
         translated = model.generate(batch['input_ids']).sequences#,**kwargs)#.sequences
+
         detok_translated = tokenizer.batch_decode(translated)#, skip_special_tokens=True, clean_up_tokenization_spaces=False)
         #lang = lang_key[re.findall("><.+>",detok_translated[0])[1:]]
         detok_translated_suffix = detok_translated#[seq + lang for seq in detok_translated]
